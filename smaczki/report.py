@@ -35,6 +35,11 @@ class Pozycja:
         return self.waga >= C.PROG_DNIA
 
     @property
+    def ma_serie(self):
+        """Czy w meczu jest jakaś seria (1X2, under/over, obie strzelą, dokładny wynik) – tylko takie pokazujemy."""
+        return any(f.typ for f in self.fakty)
+
+    @property
     def wspolne(self):
         return typy_wspolne(self.fakty)
 
@@ -75,9 +80,10 @@ def _ostatni_txt(p):
 
 
 def _podsumowanie(pozycje):
-    ze = sum(1 for p in pozycje if p.fakty)
+    ze = sum(1 for p in pozycje if p.ma_serie)
     dlugie = sum(1 for p in pozycje if p.dluga_historia)
-    return f"Meczów w terminarzu: {len(pozycje)}, ze smaczkami: {ze}, z długą historią (★): {dlugie}."
+    return (f"Meczów w terminarzu: {len(pozycje)}, z seriami (pokazane): {ze}, z długą historią (★): {dlugie}. "
+            "Mecze bez żadnej serii nie są pokazywane.")
 
 
 OPIS_TYPU = {"1": "wygra gospodarz", "X": "remis", "2": "wygra gość",
@@ -232,7 +238,7 @@ def raport_txt(pozycje, info, tytul, wszystkie=False, po_dniach=False):
             dnia = sorted([p for p in pozycje if p.dzien == dzien], key=lambda p: -p.waga)
             linie += [f"--- {DNI[dzien.weekday()]} {dzien:%d.%m.%Y} ---" if dzien else "--- bez daty ---", ""]
             for p in dnia:
-                if p.fakty or wszystkie:
+                if p.ma_serie or wszystkie:
                     linie += _mecz_txt(p, info)
             pr = predykcja(dnia)
             if pr:
@@ -242,7 +248,7 @@ def raport_txt(pozycje, info, tytul, wszystkie=False, po_dniach=False):
                 linie += ["=" * 60, ""]
     else:
         for p in sorted(pozycje, key=lambda p: -p.waga):
-            if p.fakty or wszystkie:
+            if p.ma_serie or wszystkie:
                 linie += _mecz_txt(p, info)
         pr = predykcja(pozycje)
         if pr:
@@ -550,18 +556,16 @@ def _predykcja_html(pr, skut, tytul="Ostateczna predykcja dnia", typy=None):
 
 
 def _liga_html(nazwa, mecze_ligi, skut):
-    """Rozwijana zakładka ligi: najpierw mecze ze smaczkami (od najciekawszego), potem pozostałe."""
-    if not mecze_ligi:
-        return f'<div class="liga pusta"><span>{e(nazwa)}</span><span class="lic">brak meczów</span></div>'
-    ze = sorted([p for p in mecze_ligi if p.fakty], key=lambda p: -p.waga)
-    bez = sorted([p for p in mecze_ligi if not p.fakty], key=lambda p: p.data or dt.datetime.max)
-    gw = sum(1 for p in mecze_ligi if p.dluga_historia)
-    licznik = f"{mecze(len(mecze_ligi))} · smaczki: {len(ze)}" + (f" · ★{gw}" if gw else "")
-    tresc = "".join(_karta(p, skut) for p in ze) or '<p class="empty">Brak smaczków w meczach tej ligi.</p>'
-    if bez:
-        tresc += "<h3>Pozostałe mecze</h3>" + "".join(_karta(p, skut) for p in bez)
+    """Rozwijana zakładka ligi: tylko mecze z seriami, od najciekawszego. Bez serii – sam dopisek."""
+    ze = sorted([p for p in mecze_ligi if p.ma_serie], key=lambda p: -p.waga)
+    if not ze:
+        opis = "brak smaczków" if mecze_ligi else "brak meczów"
+        return f'<div class="liga pusta"><span>{e(nazwa)}</span><span class="lic">{opis}</span></div>'
+    gw = sum(1 for p in ze if p.dluga_historia)
+    licznik = odmiana(len(ze), "mecz ze smaczkiem", "mecze ze smaczkami", "meczów ze smaczkami") \
+        + (f" · ★{gw}" if gw else "")
     return (f'<details class="liga"><summary><span>{e(nazwa)}</span><span class="lic">{e(licznik)}</span>'
-            f"</summary>{tresc}</details>")
+            f'</summary>{"".join(_karta(p, skut) for p in ze)}</details>')
 
 
 def raport_html(pozycje, info, dzis, od, do):
@@ -577,7 +581,8 @@ def raport_html(pozycje, info, dzis, od, do):
             f'<button type="button" data-d="{iso}"><span class="dn">'
             f'{"dziś" if dzien == dzis else DNI_KROTKO[dzien.weekday()]}</span>'
             f'<span class="dd">{dzien.day}.{dzien.month:02d}</span>'
-            f'<span class="ile">{"★ " + str(gw) if gw else str(len(dnia)) + " m."}</span></button>')
+            f'<span class="ile">{"★ " + str(gw) if gw else str(sum(1 for p in dnia if p.ma_serie)) + " sm."}'
+            f'</span></button>')
         ligi = [(n, [p for p in dnia if p.liga == n]) for n in LIGI_KOLEJNOSC]
         inne = [p for p in dnia if p.liga not in LIGI_KOLEJNOSC]
         if inne:
