@@ -103,20 +103,6 @@ def rynek_typu(typ):
     return "wynik"
 
 
-def gole_pary(df, ostatnie=10):
-    """Gole w meczach df (chronologicznie): ostatnie N meczów – ile powyżej i poniżej 2.5 bramki, średnia
-    i bieżąca seria powyżej/poniżej 2.5. None, gdy brak meczów."""
-    if not len(df):
-        return None
-    suma = (df.hgoal + df.vgoal).to_numpy()
-    over = suma >= 3
-    seria = _od_konca(over if over[-1] else ~over)
-    ost = suma[-ostatnie:]
-    return {"meczow": int(len(ost)), "powyzej": int((ost >= 3).sum()), "ponizej": int((ost <= 2).sum()),
-            "srednio": float(ost.mean()), "seria": int(seria), "seria_powyzej": bool(over[-1]),
-            "wszystkich": int(len(suma)), "srednio_wszystkie": float(suma.mean())}
-
-
 def typ_serii(s):
     return f"S{s.wynik[0]}:{s.wynik[1]}" if s.typ == "S" else TYP_ZAKLADU[s.typ]
 
@@ -304,7 +290,8 @@ def serie_bramek(df, druzyna, stawki):
 
 
 def _istotna(s, ref):
-    min_n = C.MIN_SERIA_WYNIKU if s.typ == "S" else C.MIN_SERIA
+    min_n = {"S": C.MIN_SERIA_WYNIKU, "O": C.MIN_SERIA_GOLI, "U": C.MIN_SERIA_GOLI,
+             "B": C.MIN_SERIA_GOLI, "nB": C.MIN_SERIA_GOLI}.get(s.typ, C.MIN_SERIA)
     if s.n >= min_n and s.rzadkosc >= C.MIN_RZADKOSC:
         return True
     # "nie wygrał od X r." / "nigdy nie wygrał" – także przy mniejszej rzadkości, jeśli trwa długo
