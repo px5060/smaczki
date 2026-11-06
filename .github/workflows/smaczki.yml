@@ -1,0 +1,63 @@
+name: Smaczki dnia
+
+on:
+  schedule:
+    - cron: "23 5 * * *"   # codziennie ok. 6:23 zimą / 7:23 latem (czas polski)
+    - cron: "23 11 * * *"  # druga aktualizacja: terminarz meczów w tygodniu bywa dopisywany później
+  workflow_dispatch:        # ręczne uruchomienie: zakładka Actions -> Smaczki dnia -> Run workflow
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  actions: write            # tylko do utrzymania harmonogramu (ostatni krok)
+
+concurrency:
+  group: smaczki
+  cancel-in-progress: false
+
+jobs:
+  smaczki:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Dane z poprzednich uruchomień (archiwum, zakończone sezony, wysłane powiadomienia)
+        uses: actions/cache@v4
+        with:
+          path: dane
+          key: dane-${{ github.run_id }}
+          restore-keys: dane-
+
+      - name: Smaczki na dziś i jutro
+        env:
+          TZ: Europe/Warsaw
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+          API_FOOTBALL_HOST: ${{ vars.API_FOOTBALL_HOST }}
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          SMACZKI_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+        run: python -m smaczki dzis --html site/index.html
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+      - name: Utrzymanie harmonogramu (GitHub wyłącza go po 60 dniach bez zmian w repo)
+        if: github.event_name == 'schedule'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PUT "repos/${{ github.repository }}/actions/workflows/smaczki.yml/enable"

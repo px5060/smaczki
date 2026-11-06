@@ -1,0 +1,10 @@
+# dane (archiwum engsoccerdata, cache źródeł, znaczniki powiadomień) – pobierane automatycznie
+dane/
+api_cache/
+# wyniki
+site/
+raport_*.txt
+# klucze
+.env
+__pycache__/
+*.pyc
