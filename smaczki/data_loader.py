@@ -1,4 +1,5 @@
-"""Dane: archiwum engsoccerdata (1888–05.2025) + bieżące wyniki i terminarz.
+"""Dane: archiwum engsoccerdata (Anglia od 1888, pozostałe kraje – patrz config.KRAJE; do 05–06.2025)
++ bieżące wyniki i terminarz. Każdy kraj osobno (własne archiwum, nazwy i odsetki wyników sezonów).
 
 Źródła bieżące:
   fd  – football-data.co.uk: darmowe pliki CSV, bez klucza (wyniki aktualizowane ok. 2 razy w tygodniu,
@@ -18,7 +19,7 @@ from dataclasses import dataclass, field
 import pandas as pd
 
 from . import config as C
-from .names import Nazwy
+from .names import Nazwy, wczytaj_aliasy
 
 NAGLOWKI = {"User-Agent": "smaczki-meczowe/1.0 (python urllib)"}
 KOLUMNY = ["Date", "Season", "home", "visitor", "hgoal", "vgoal", "tier"]
@@ -49,6 +50,30 @@ class Dane:
     uzupelnione: list = field(default_factory=list)  # sezony brakujące w archiwum, dopisane ze źródła
     pobrano: dt.datetime | None = None               # kiedy pobrano dane bieżące
     biezace: str | None = None                       # nazwa źródła bieżącego (None = samo archiwum)
+    kraj: str = C.KRAJ_DOMYSLNY
+    poziomy: tuple = (1, 2, 3, 4)
+    ligi: list = field(default_factory=list)         # [StanLigi] – raport per liga: koniec historii, dopisane mecze
+
+    @property
+    def nazwa_kraju(self):
+        return C.KRAJE[self.kraj].nazwa
+
+
+@dataclass
+class StanLigi:
+    kod: str
+    nazwa: str
+    poziom: int
+    koniec: object = None     # data ostatniego meczu w historii (archiwum + uzupełnienie)
+    koniec_archiwum: object = None
+    dopisane: int = 0         # mecze dopisane ze źródła bieżącego (od sezonu 2025/26 i w lukach archiwum)
+    ostrzezenie: str = ""     # gdy luka od maja 2025 nie została zamknięta
+
+
+def ligi_kraju(kraj=C.KRAJ_DOMYSLNY, poziomy=None):
+    """{kod ligi: (nazwa, poziom, id API)} dla włączonych poziomów kraju."""
+    ligi = C.KRAJE[kraj].ligi
+    return {k: v for k, v in ligi.items() if poziomy is None or v[1] in poziomy}
 
 
 def _pobierz(url, naglowki=None, timeout=60):
@@ -68,24 +93,26 @@ def opis_sezonu(s):
 
 # ---------- archiwum engsoccerdata ----------
 
-def sciezka_archiwum(sciezka):
-    """Przyjmuje plik england.csv albo folder, w którym leży (dane/ lub engsoccerdata/data-raw)."""
+def sciezka_archiwum(sciezka, kraj=C.KRAJ_DOMYSLNY):
+    """Przyjmuje plik <kraj>.csv albo folder, w którym leży (dane/ lub engsoccerdata/data-raw).
+    Dla innego kraju niż Anglia przy podanym pliku england.csv bierze <kraj>.csv z tego samego folderu."""
     if sciezka.lower().endswith(".csv"):
-        return sciezka
-    return os.path.join(sciezka, "england.csv")
+        return sciezka if kraj == C.KRAJ_DOMYSLNY else os.path.join(os.path.dirname(sciezka), f"{kraj}.csv")
+    return os.path.join(sciezka, f"{kraj}.csv")
 
 
-def pobierz_archiwum(sciezka, wymus=False):
-    plik = sciezka_archiwum(sciezka)
+def pobierz_archiwum(sciezka, wymus=False, kraj=C.KRAJ_DOMYSLNY):
+    plik = sciezka_archiwum(sciezka, kraj)
     if os.path.exists(plik) and not wymus:
         return plik
     os.makedirs(os.path.dirname(plik) or ".", exist_ok=True)
-    print(f"Pobieram archiwum engsoccerdata (ok. 15 MB) do {plik} …", flush=True)
+    url = f"{C.ARCHIWUM_BAZA}/{kraj}.csv"
+    print(f"Pobieram archiwum engsoccerdata ({C.KRAJE[kraj].nazwa}) do {plik} …", flush=True)
     try:
-        dane = _pobierz(C.ARCHIWUM_URL, timeout=300)
+        dane = _pobierz(url, timeout=300)
     except (urllib.error.URLError, OSError) as e:
         raise BladDanych(f"Nie udało się pobrać archiwum engsoccerdata ({e}). Pobierz ręcznie "
-                         f"{C.ARCHIWUM_URL} i zapisz jako {plik}.") from e
+                         f"{url} i zapisz jako {plik}.") from e
     tmp = plik + ".tmp"
     with open(tmp, "wb") as f:
         f.write(dane)
@@ -93,8 +120,9 @@ def pobierz_archiwum(sciezka, wymus=False):
     return plik
 
 
-def wczytaj_archiwum(sciezka):
-    plik = pobierz_archiwum(sciezka)
+def wczytaj_archiwum(sciezka, kraj=C.KRAJ_DOMYSLNY, poziomy=None):
+    """Archiwum kraju (tylko wspólne kolumny; nazwy ujednolicone sekcją "archiwum" z aliasy/<kraj>.json)."""
+    plik = pobierz_archiwum(sciezka, kraj=kraj)
     d = pd.read_csv(plik, usecols=KOLUMNY, low_memory=False)
     d["Date"] = pd.to_datetime(d["Date"], errors="coerce")
     d = d.dropna(subset=["Date", "hgoal", "vgoal"]).copy()
@@ -102,6 +130,18 @@ def wczytaj_archiwum(sciezka):
     d["vgoal"] = d["vgoal"].astype(int)
     d["tier"] = pd.to_numeric(d["tier"], errors="coerce").fillna(0).astype(int)
     d["Season"] = pd.to_numeric(d["Season"], errors="coerce").fillna(0).astype(int)
+    if poziomy is not None:
+        d = d[d.tier.isin(list(poziomy))].copy()
+    aliasy = wczytaj_aliasy(kraj)
+    ujednolic = aliasy.get("archiwum", {})
+    w_sezonach = aliasy.get("archiwum_sezony", {})  # {nazwa: {sezon: inna nazwa}} – dwa kluby pod jedną nazwą
+    for kol in ("home", "visitor"):
+        d[kol] = d[kol].astype(str).str.strip()
+        for nazwa, sezony in w_sezonach.items():
+            for sezon, nowa in sezony.items():
+                d.loc[(d[kol] == nazwa) & (d.Season == int(sezon)), kol] = nowa
+        if ujednolic:
+            d[kol] = d[kol].replace(ujednolic)
     d["zrodlo"] = "archiwum"
     return d.sort_values("Date", kind="stable").reset_index(drop=True)
 
@@ -168,17 +208,18 @@ def _fd_get(url):
     try:
         return _pobierz(url)
     except urllib.error.HTTPError as e:
-        if e.code == 404:
+        if e.code in (300, 404, 410):  # brak pliku (sezon nieopublikowany albo liga bez danych w tym sezonie)
             return None
         raise BladDanych(f"football-data.co.uk: błąd HTTP {e.code} dla {url}.") from e
     except (urllib.error.URLError, OSError) as e:
         raise BladDanych(f"football-data.co.uk jest niedostępne ({e}).") from e
 
 
-def fd_wyniki(sezon, cache_dir, biezacy):
-    """Zakończone mecze 4 lig w sezonie. Zakończone sezony czytane z cache, bieżący pobierany zawsze."""
+def fd_wyniki(sezon, cache_dir, biezacy, ligi=None):
+    """Zakończone mecze lig (domyślnie 4 angielskich) w sezonie. Zakończone sezony czytane z cache,
+    bieżący pobierany zawsze."""
     wiersze = []
-    for div, (_, tier, _) in C.LIGI.items():
+    for div, (_, tier, _) in (C.LIGI if ligi is None else ligi).items():
         plik = os.path.join(cache_dir, f"fd_{_fd_kod(sezon)}_{div}.csv")
         if not biezacy and os.path.exists(plik):
             with open(plik, "rb") as f:
@@ -200,18 +241,25 @@ def fd_wyniki(sezon, cache_dir, biezacy):
     return pd.DataFrame(wiersze, columns=KOLUMNY)
 
 
-def fd_terminarz(od, do):
-    """Mecze 4 lig z fixtures.csv w zakresie dat (daty brytyjskie, godziny przeliczone na polskie)."""
-    raw = _fd_get(f"{C.FD_URL}/fixtures.csv")
-    if raw is None:
-        raise BladDanych("football-data.co.uk: brak pliku fixtures.csv.")
-    return fd_terminarz_z_tekstu(_dekoduj(raw), od, do)
+_TERMINARZ = {}  # fixtures.csv pobrany raz na uruchomienie (wspólny dla wszystkich krajów)
 
 
-def fd_terminarz_z_tekstu(tekst, od, do):
+def fd_terminarz(od, do, ligi=None):
+    """Mecze lig z fixtures.csv w zakresie dat (godziny brytyjskie przeliczone na polskie)."""
+    url = f"{C.FD_URL}/fixtures.csv"
+    if url not in _TERMINARZ:
+        raw = _fd_get(url)
+        if raw is None:
+            raise BladDanych("football-data.co.uk: brak pliku fixtures.csv.")
+        _TERMINARZ[url] = _dekoduj(raw)
+    return fd_terminarz_z_tekstu(_TERMINARZ[url], od, do, ligi)
+
+
+def fd_terminarz_z_tekstu(tekst, od, do, ligi=None):
+    ligi = C.LIGI if ligi is None else ligi
     out = []
     for w in _csv_wiersze(tekst):
-        if w.get("Div") not in C.LIGI:
+        if w.get("Div") not in ligi:
             continue
         d = _fd_data(w.get("Date", ""))
         if d is None or not (od <= d.date() <= do):
@@ -220,15 +268,15 @@ def fd_terminarz_z_tekstu(tekst, od, do):
         if ":" in godz:
             hh, mm = godz.split(":")[:2]
             d = d.replace(hour=int(hh), minute=int(mm)) + dt.timedelta(hours=C.FD_PRZESUNIECIE_GODZIN)
-        out.append(Mecz(d, C.LIGI[w["Div"]][0], w["HomeTeam"], w["AwayTeam"], kursy_z_wiersza(w)))
+        out.append(Mecz(d, ligi[w["Div"]][0], w["HomeTeam"], w["AwayTeam"], kursy_z_wiersza(w)))
     return out
 
 
-def fd_dane(sezony, s_biez, cache_dir, od, do, z_terminarzem=True):
-    wyniki = [fd_wyniki(s, cache_dir, s == s_biez) for s in sezony]
+def fd_dane(sezony, s_biez, cache_dir, od, do, z_terminarzem=True, ligi=None):
+    wyniki = [fd_wyniki(s, cache_dir, s == s_biez, ligi) for s in sezony]
     wyniki = pd.concat([w for w in wyniki if len(w)], ignore_index=True) if any(len(w) for w in wyniki) \
         else pd.DataFrame(columns=KOLUMNY)
-    terminarz = fd_terminarz(od, do) if z_terminarzem else []
+    terminarz = fd_terminarz(od, do, ligi) if z_terminarzem else []
     return wyniki, terminarz
 
 
@@ -306,9 +354,9 @@ def api_rozdziel(odpowiedzi, od, do):
     return pd.DataFrame(wyniki, columns=KOLUMNY), terminarz
 
 
-def api_dane(sezony, s_biez, cache_dir, od, do, z_terminarzem=True):
+def api_dane(sezony, s_biez, cache_dir, od, do, z_terminarzem=True, ligi=None):
     odpowiedzi = []
-    for nazwa, tier, liga_id in C.LIGI.values():
+    for nazwa, tier, liga_id in (C.LIGI if ligi is None else ligi).values():
         for s in sezony:
             odpowiedzi += [(f, tier, nazwa, s) for f in api_sezon(liga_id, s, cache_dir, s == s_biez)]
     wyniki, terminarz = api_rozdziel(odpowiedzi, od, do)
@@ -320,10 +368,13 @@ def api_dane(sezony, s_biez, cache_dir, od, do, z_terminarzem=True):
 OPIS_ZRODLA = {"fd": "football-data.co.uk", "api": "API-Football"}
 
 
-def zbierz(archiwum, cache_dir, zrodlo, dzis, od, do, z_terminarzem=True):
-    """Archiwum + wyniki od sezonu 2025/26 + terminarz. Przy błędzie źródła: ostrzeżenie i samo archiwum."""
-    hist = wczytaj_archiwum(archiwum)
-    nazwy = Nazwy(hist)
+def zbierz(archiwum, cache_dir, zrodlo, dzis, od, do, z_terminarzem=True, kraj=C.KRAJ_DOMYSLNY, poziomy=None):
+    """Archiwum kraju + wyniki od sezonu 2025/26 (i z sezonów brakujących w archiwum) + terminarz.
+    Przy błędzie źródła: ostrzeżenie i samo archiwum. poziomy: włączone poziomy (None = wszystkie z config)."""
+    ligi = ligi_kraju(kraj, poziomy)
+    poziomy = tuple(sorted({t for _, t, _ in ligi.values()}))
+    hist = wczytaj_archiwum(archiwum, kraj, poziomy)
+    nazwy = Nazwy(hist, kraj)
     ostrz = []
     if zrodlo == "auto":
         kolejnosc = ["api", "fd"] if klucz_api() else ["fd"]
@@ -333,18 +384,23 @@ def zbierz(archiwum, cache_dir, zrodlo, dzis, od, do, z_terminarzem=True):
         kolejnosc = [zrodlo]
     s_biez = sezon_biezacy(dzis)
     luki = luki_archiwum(hist)
-    sezony = luki + list(range(C.PIERWSZY_SEZON_PO_ARCHIWUM, s_biez + 1))
+    luki_poz = [(s, t) for s, t in luki_poziomow(hist) if s not in luki]
+    sezony = sorted(set(luki) | {s for s, _ in luki_poz}) + list(range(C.PIERWSZY_SEZON_PO_ARCHIWUM, s_biez + 1))
+    # Anglia z 4 poziomami = domyślne ligi źródeł (wywołanie jak przed dodaniem innych krajów)
+    kw = {} if kraj == C.KRAJ_DOMYSLNY and poziomy == (1, 2, 3, 4) else {"ligi": ligi}
     for z in kolejnosc:
         try:
             if z == "api":
                 if not klucz_api():
                     raise BladDanych("Brak klucza API-Football: ustaw API_FOOTBALL_KEY (zmienna albo plik .env).")
-                wyniki, term = api_dane(sezony, s_biez, cache_dir, od, do, z_terminarzem)
+                wyniki, term = api_dane(sezony, s_biez, cache_dir, od, do, z_terminarzem, **kw)
             else:
-                wyniki, term = fd_dane(sezony, s_biez, cache_dir, od, do, z_terminarzem)
+                wyniki, term = fd_dane(sezony, s_biez, cache_dir, od, do, z_terminarzem, **kw)
         except BladDanych as e:
             ostrz.append(str(e))
             continue
+        if len(wyniki):
+            wyniki = wyniki[wyniki.tier.isin(list(poziomy))]
         uzupelnione = [s for s in luki if len(wyniki) and (wyniki.Season == s).any()]
         for s in luki:
             if s not in uzupelnione:
@@ -353,24 +409,130 @@ def zbierz(archiwum, cache_dir, zrodlo, dzis, od, do, z_terminarzem=True):
         if len(wyniki):
             wyniki = wyniki.assign(home=wyniki.home.map(nazwy), visitor=wyniki.visitor.map(nazwy),
                                    zrodlo=OPIS_ZRODLA[z])
-            hist = pd.concat([hist, wyniki[KOLUMNY_HIST]], ignore_index=True).sort_values("Date", kind="stable") \
-                .reset_index(drop=True)
+            hist = dolacz(hist, wyniki, luki_poz)
         opis = f"archiwum engsoccerdata + {OPIS_ZRODLA[z]} (od sezonu {opis_sezonu(C.PIERWSZY_SEZON_PO_ARCHIWUM)})"
-        return Dane(hist, term, nazwy, opis, ostrz, uzupelnione=uzupelnione, pobrano=dt.datetime.now(),
-                    biezace=OPIS_ZRODLA[z])
+        d = Dane(hist, term, nazwy, opis, ostrz, uzupelnione=uzupelnione, pobrano=dt.datetime.now(),
+                 biezace=OPIS_ZRODLA[z], kraj=kraj, poziomy=poziomy)
+        d.ligi = stan_lig(d, ligi, s_biez)
+        return d
     if luki:
         ostrz.append("Archiwum nie ma sezonu " + ", ".join(map(opis_sezonu, luki)) +
                      " – bez danych bieżących nie da się go uzupełnić.")
-    return Dane(hist, [], nazwy, "samo archiwum engsoccerdata", ostrz, tylko_archiwum=True)
+    d = Dane(hist, [], nazwy, "samo archiwum engsoccerdata", ostrz, tylko_archiwum=True, kraj=kraj, poziomy=poziomy)
+    d.ligi = stan_lig(d, ligi, s_biez)
+    return d
+
+
+def dolacz(hist, wyniki, luki_poz=()):
+    """Dopisuje wyniki ze źródła bieżącego do archiwum bez duplikatów: sezon i poziom, który jest w archiwum,
+    zostaje z archiwum (chyba że to luka w tym poziomie), a ta sama data i para drużyn to zawsze jeden mecz."""
+    w = wyniki[KOLUMNY_HIST]
+    if len(hist):
+        w_archiwum = set(zip(hist.Season, hist.tier))
+        zostaw = [(s, t) not in w_archiwum or (s, t) in set(luki_poz) for s, t in zip(w.Season, w.tier)]
+        w = w[zostaw]
+    razem = pd.concat([hist, w], ignore_index=True)
+    razem = razem.drop_duplicates(["Date", "home", "visitor"], keep="first")
+    return razem.sort_values("Date", kind="stable").reset_index(drop=True)
+
+
+def stan_lig(dane, ligi, s_biez):
+    """Raport per liga: ostatni mecz w historii, liczba dopisanych meczów, ostrzeżenie o niezamkniętej luce."""
+    h = dane.hist
+    out = []
+    for kod, (nazwa, tier, _) in ligi.items():
+        g = h[h.tier == tier]
+        st = StanLigi(kod, nazwa, tier, g.Date.max() if len(g) else None)
+        arch = g[g.zrodlo == "archiwum"]
+        st.koniec_archiwum = arch.Date.max() if len(arch) else None
+        st.dopisane = int((g.zrodlo != "archiwum").sum())
+        if dane.tylko_archiwum:
+            st.ostrzezenie = "brak danych bieżących – historia kończy się na archiwum"
+        else:
+            brak = [s for s in range(C.PIERWSZY_SEZON_PO_ARCHIWUM, s_biez + 1)
+                    if not ((g.Season == s) & (g.zrodlo != "archiwum")).any()]
+            if brak:
+                st.ostrzezenie = (f"{dane.biezace} nie zwróciło wyników sezonu {', '.join(map(opis_sezonu, brak))} "
+                                  "– luka od maja 2025 nie jest zamknięta")
+        out.append(st)
+    return out
 
 
 def luki_archiwum(hist):
     """Sezony bez ani jednego meczu w archiwum (od 1993/94 – tyle sięga football-data.co.uk) do jego końca.
 
-    engsoccerdata nie ma całego sezonu 2022/23; jeśli autorzy go dopiszą, nic nie będzie uzupełniane.
+    engsoccerdata nie ma całego sezonu 2022/23 w Anglii i 1994/95 we Francji; jeśli autorzy je dopiszą,
+    nic nie będzie uzupełniane.
     """
     if "Season" not in hist or not len(hist):
         return []
     ostatni = int(hist.Season.max())
     jest = set(hist.Season.unique())
-    return [s for s in range(C.LUKI_OD_SEZONU, ostatni + 1) if s not in jest]
+    od = max(C.LUKI_OD_SEZONU, int(hist.Season.min()))  # przed początkiem danych kraju to nie luka
+    return [s for s in range(od, ostatni + 1) if s not in jest]
+
+
+def luki_poziomow(hist):
+    """(sezon, poziom) brakujące w archiwum w obrębie lat, w których dany poziom jest w danych (od 1993/94)."""
+    out = []
+    if not len(hist):
+        return out
+    for t, g in hist.groupby("tier"):
+        jest = set(g.Season.unique())
+        out += [(s, int(t)) for s in range(max(C.LUKI_OD_SEZONU, int(g.Season.min())), int(g.Season.max()) + 1)
+                if s not in jest]
+    return sorted(out)
+
+
+def wlaczone_ligi(plik=None):
+    """Włączone kraje i poziomy z pliku ligi.json: {kraj: (poziomy)}; brak pliku -> sama Anglia."""
+    plik = plik or C.PLIK_LIG
+    if not os.path.exists(plik):
+        return {C.KRAJ_DOMYSLNY: (1, 2, 3, 4)}
+    with open(plik, encoding="utf-8") as f:
+        dane = json.load(f)
+    out = {}
+    for kraj, poziomy in dane.items():
+        if kraj.startswith("_"):
+            continue
+        if kraj not in C.KRAJE:
+            raise BladDanych(f"{plik}: nieznany kraj „{kraj}” (dostępne: {', '.join(C.KRAJE)}).")
+        dostepne = {t for _, t, _ in C.KRAJE[kraj].ligi.values()}
+        zle = set(poziomy) - dostepne
+        if zle:
+            raise BladDanych(f"{plik}: {kraj} nie ma w danych poziomów {sorted(zle)} (są: {sorted(dostepne)}).")
+        if poziomy:
+            out[kraj] = tuple(sorted(poziomy))
+    return {k: out[k] for k in C.KRAJE if k in out}  # kolejność jak w config
+
+
+def wybierz_ligi(wlaczone, filtr):
+    """Zawężenie opcją --ligi: lista krajów (spain,italy) albo kodów lig (E0,D2,SC0).
+    Zwraca (kraje -> poziomy historii, kody lig do terminarza albo None = wszystkie ligi tych krajów).
+    Historia kraju obejmuje zawsze poziomy z ligi.json, nawet gdy terminarz jest zawężony do jednej ligi."""
+    if not filtr:
+        return wlaczone, None
+    kraje, kody, same_kraje = {}, set(), True
+    for x in [t.strip() for t in filtr.split(",") if t.strip()]:
+        if x.lower() in C.KRAJE:
+            kraj = x.lower()
+            kraje[kraj] = wlaczone.get(kraj) or tuple(sorted({t for _, t, _ in C.KRAJE[kraj].ligi.values()}))
+            kody |= {k for k, v in C.KRAJE[kraj].ligi.items() if v[1] in kraje[kraj]}
+        elif x.upper() in C.LIGA_KRAJ:
+            kraj, same_kraje = C.LIGA_KRAJ[x.upper()], False
+            t = C.KRAJE[kraj].ligi[x.upper()][1]
+            kraje[kraj] = tuple(sorted(set(wlaczone.get(kraj, ())) | {t}))
+            kody.add(x.upper())
+        else:
+            raise BladDanych(f"--ligi: nieznane „{x}”. Kraje: {', '.join(C.KRAJE)}; "
+                             f"kody lig: {', '.join(C.LIGA_KRAJ)}.")
+    return {k: kraje[k] for k in C.KRAJE if k in kraje}, (None if same_kraje else kody)
+
+
+def zbierz_kraje(archiwum, cache_dir, zrodlo, dzis, od, do, wlaczone, z_terminarzem=True):
+    """zbierz() dla każdego włączonego kraju: [Dane]. Archiwa krajów pobierane przy pierwszym użyciu."""
+    _TERMINARZ.clear()
+    out = []
+    for kraj, poziomy in wlaczone.items():
+        out.append(zbierz(archiwum, cache_dir, zrodlo, dzis, od, do, z_terminarzem, kraj=kraj, poziomy=poziomy))
+    return out

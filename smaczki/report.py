@@ -25,6 +25,8 @@ class Pozycja:
     ostatni: object = None  # ostatni mecz u gospodarza (wiersz historii) albo None
     wyniki: dict = None     # mecze do podglądu (rules.wyniki_pary)
     kursy: tuple = None     # aktualne średnie kursy (1, X, 2), jeśli są
+    kraj: str = C.KRAJ_DOMYSLNY
+    zakres: object = None   # rules.Zakres – zakres danych kraju (None = Anglia: pełna historia 4 poziomów)
 
     @property
     def waga(self):
@@ -72,8 +74,14 @@ def _sezony(lista):
     return ", ".join(f"{s}/{(s + 1) % 100:02d}" for s in lista)
 
 
+def _opis_zakresu(p):
+    return p.zakres.opis if p.zakres is not None else ""
+
+
 def _ostatni_txt(p):
     if p.ostatni is None:
+        if _opis_zakresu(p):
+            return f"{p.v} nie grał u {p.h} w danych ({_opis_zakresu(p)})"
         return f"{p.v} jeszcze nie grał ligowo u {p.h}"
     r = p.ostatni
     return f"ostatni mecz u {p.h}: {fmt(r.Date)}, {r.hgoal}:{r.vgoal}"
@@ -198,10 +206,61 @@ def ostrzezenia(info):
         out.append(f"UWAGA: brak danych bieżących – historia kończy się {fmt(info['koniec'])}. "
                    "Sprawdź ręcznie mecze tych drużyn z ostatnich sezonów – passa mogła się przerwać.")
     out += info["ostrzezenia"]
-    if info["niedopasowane"]:
-        out.append("Nazwy bez dopasowania w archiwum (dopisz alias w smaczki/names.py, jeśli to znany klub): "
-                   + ", ".join(sorted(info["niedopasowane"])))
+    niedop = info["niedopasowane"]
+    if isinstance(niedop, (set, list)):  # starszy format: same nazwy (Anglia)
+        niedop = {("Anglia", "england"): {n: [] for n in niedop}} if niedop else {}
+    for (nazwa, kraj), nazwy in niedop.items():
+        lista = "; ".join(n + (f" (najbliższe: {', '.join(k)})" if k else "") for n, k in nazwy.items())
+        out.append(f"Nazwy bez dopasowania w archiwum – {nazwa} (dopisz alias w smaczki/aliasy/{kraj}.json, "
+                   f"jeśli to znany klub): {lista}")
     return out
+
+
+def _kraje(info):
+    """Kraje z raportu: [{"kraj", "nazwa", "ligi": [StanLigi]…}] (zgodność wstecz: sama Anglia)."""
+    if info.get("kraje"):
+        return info["kraje"]
+    from .data_loader import StanLigi
+    return [{"kraj": C.KRAJ_DOMYSLNY, "nazwa": C.KRAJE[C.KRAJ_DOMYSLNY].nazwa,
+             "ligi": [StanLigi(k, n, t) for k, (n, t, _) in C.LIGI.items()]}]
+
+
+def grupy(pozycje, info, puste_ligi=False):
+    """Mecze pogrupowane po kraju i lidze (kolejność z config, w lidze od najciekawszego):
+    [(kraj, [(nazwa ligi, [Pozycja])])]. puste_ligi – także ligi bez meczów."""
+    out = []
+    znane = set()
+    for k in _kraje(info):
+        mecze_kraju = [p for p in pozycje if p.kraj == k["kraj"]]
+        znane.add(k["kraj"])
+        nazwy = [st.nazwa for st in k["ligi"]]
+        ligi = [(n, sorted([p for p in mecze_kraju if p.liga == n], key=lambda p: -p.waga)) for n in nazwy]
+        inne = [p for p in mecze_kraju if p.liga not in nazwy]
+        if inne:
+            ligi.append(("Inne mecze", sorted(inne, key=lambda p: -p.waga)))
+        ligi = [(n, m) for n, m in ligi if m or puste_ligi]
+        if mecze_kraju or puste_ligi:
+            out.append((k, ligi))
+    reszta = [p for p in pozycje if p.kraj not in znane]
+    if reszta:
+        out.append(({"kraj": "", "nazwa": "Inne"}, [("Inne mecze", sorted(reszta, key=lambda p: -p.waga))]))
+    return out
+
+
+def stan_lig_txt(info):
+    """Raport per liga: ostatni mecz w historii, dopisane mecze, ostrzeżenie o niezamkniętej luce."""
+    linie = []
+    for k in info.get("kraje") or []:
+        for st in k["ligi"]:
+            if st.koniec is None:
+                continue
+            linia = f"  {k['nazwa']} – {st.nazwa}: historia do {fmt(st.koniec)}"
+            if st.dopisane:
+                linia += f" · dopisano {st.dopisane} meczów ze źródła bieżącego"
+            if st.ostrzezenie:
+                linia += f" · UWAGA: {st.ostrzezenie}"
+            linie.append(linia)
+    return (["Stan danych per liga:"] + linie) if linie else []
 
 
 def _mecz_txt(p, info):
@@ -224,22 +283,40 @@ def _predykcja_txt(pr, skut, tytul):
             + ["=" * 60, ""])
 
 
+def _grupy_txt(pozycje, info, wszystkie):
+    """Mecze pogrupowane po kraju i lidze, w grupie od najciekawszego."""
+    linie = []
+    wiele = len(_kraje(info)) > 1
+    for k, ligi in grupy(pozycje, info):
+        blok = []
+        for nazwa, mecze_ligi in ligi:
+            pokazane = [p for p in mecze_ligi if p.ma_serie or wszystkie]
+            if pokazane:
+                blok += [f"· {nazwa} ·", ""] + [x for p in pokazane for x in _mecz_txt(p, info)]
+        if blok:
+            linie += ([f"== {k['nazwa']} ==", ""] if wiele else []) + blok
+    return linie
+
+
 def raport_txt(pozycje, info, tytul, wszystkie=False, po_dniach=False):
-    """Raport tekstowy. po_dniach: mecze dzień po dniu i ostateczna predykcja każdego dnia;
-    inaczej: wszystkie mecze od najciekawszego i jedna ostateczna predykcja na końcu."""
+    """Raport tekstowy pogrupowany po kraju i lidze (w grupie od najciekawszego). po_dniach: dzień po dniu
+    i ostateczna predykcja każdego dnia; inaczej: jedna ostateczna predykcja na końcu."""
     skut = info.get("skutecznosc")
     linie = [f"{tytul}  (historia ligowa do {fmt(info['koniec'])}; {info['zrodlo']})"]
     if info.get("uzupelnione"):
         linie.append(f"Sezon {_sezony(info['uzupelnione'])} – brak w archiwum, uzupełniony z {info['zrodlo_biezace']}.")
+    for k in info.get("kraje") or []:
+        if len(info["kraje"]) > 1 and k.get("uzupelnione"):
+            linie.append(f"{k['nazwa']}: sezon {_sezony(k['uzupelnione'])} – brak w archiwum, uzupełniony z "
+                         f"{info['zrodlo_biezace']}.")
     linie += ostrzezenia(info)
+    linie += stan_lig_txt(info)
     linie.append("")
     if po_dniach:
         for dzien in sorted({p.dzien for p in pozycje}, key=lambda d: d or dt.date.max):
             dnia = sorted([p for p in pozycje if p.dzien == dzien], key=lambda p: -p.waga)
             linie += [f"--- {DNI[dzien.weekday()]} {dzien:%d.%m.%Y} ---" if dzien else "--- bez daty ---", ""]
-            for p in dnia:
-                if p.ma_serie or wszystkie:
-                    linie += _mecz_txt(p, info)
+            linie += _grupy_txt(dnia, info, wszystkie)
             pr = predykcja(dnia)
             if pr:
                 linie += _predykcja_txt(pr, skut, "OSTATECZNA PREDYKCJA DNIA")[:-2]
@@ -247,14 +324,12 @@ def raport_txt(pozycje, info, tytul, wszystkie=False, po_dniach=False):
                 linie += [f"  {i}. {typ_linia(p, t)}" for i, (p, t) in enumerate(typy_dnia(dnia), 1)]
                 linie += ["=" * 60, ""]
     else:
-        for p in sorted(pozycje, key=lambda p: -p.waga):
-            if p.ma_serie or wszystkie:
-                linie += _mecz_txt(p, info)
+        linie += _grupy_txt(pozycje, info, wszystkie)
         pr = predykcja(pozycje)
         if pr:
             linie += _predykcja_txt(pr, skut, "OSTATECZNA PREDYKCJA")
     if not pozycje:
-        linie += ["Brak meczów 4 lig angielskich w tym okresie.", ""]
+        linie += ["Brak meczów włączonych lig w tym okresie.", ""]
     linie.append(_podsumowanie(pozycje))
     return "\n".join(linie)
 
@@ -314,6 +389,8 @@ margin:0;color:var(--ink);font-size:1rem;font-weight:650;list-style:none}
 .liga .card{margin:.5rem 0}
 .liga.pusta{display:flex;justify-content:space-between;padding:.75rem .8rem;color:var(--muted)}
 .liga.pusta .lic{font-size:.75rem}
+h3.kraj{font-size:.95rem;color:var(--ink);margin:1.1rem 0 .2rem;font-weight:700}
+.uw{color:var(--accent)}
 section.dzien[hidden]{display:none}
 .predykcja{border:2px solid var(--accent);border-radius:14px;padding:.8rem .9rem;margin:1.6rem 0 .6rem;
 background:var(--card)}
@@ -393,9 +470,9 @@ def _ou(r):
     return "pow." if r.hgoal + r.vgoal >= 3 else "pon."
 
 
-def _bilans(df, h, v):
+def _bilans(df, h, v, zakres=""):
     z = [_znak(r) for r in df.itertuples()]
-    return (f'<p class="podsum">{mecze(len(z))} od {df.Date.min().year} r. · '
+    return (f'<p class="podsum">{mecze(len(z))} od {df.Date.min().year} r.{" (" + e(zakres) + ")" if zakres else ""} · '
             f'wygrane {e(h)}: {z.count("1")} · remisy: {z.count("X")} · wygrane {e(v)}: {z.count("2")}</p>')
 
 
@@ -419,23 +496,26 @@ def _wyniki_html(p):
     if not p.wyniki:
         return ""
     u, rew = p.wyniki["u_gosp"], p.wyniki["rewanze"]
+    zakres = _opis_zakresu(p)
     czesci = []
     if len(u):
         tytul = f"Pokaż wyniki: {mecze(len(u))} u {p.h}"
-        czesci.append(_bilans(u, p.h, p.v) + _tabela_u_gospodarza(u))
+        czesci.append(_bilans(u, p.h, p.v, zakres) + _tabela_u_gospodarza(u))
     else:
         tytul = "Pokaż wyniki"
-        czesci.append(f'<p class="podsum">{e(p.v)} nie grał jeszcze ligowo u {e(p.h)}.</p>')
+        czesci.append(f'<p class="podsum">{e(_ostatni_txt(Pozycja(None, "", p.h, p.v, [], zakres=p.zakres)))}.</p>'
+                      if zakres else f'<p class="podsum">{e(p.v)} nie grał jeszcze ligowo u {e(p.h)}.</p>')
     if len(rew):
         czesci.append(f"<details><summary>Rewanże: {mecze(len(rew))} u {e(p.v)}</summary>"
-                      f"{_bilans(rew, p.v, p.h)}{_tabela_u_gospodarza(rew)}</details>")
+                      f"{_bilans(rew, p.v, p.h, zakres)}{_tabela_u_gospodarza(rew)}</details>")
     if len(rew) and len(u):
         razem = pd.concat([u, rew]).sort_values("Date", ascending=False, kind="stable")
         z = [("W" if (r.hgoal > r.vgoal) == (r.home == p.h) and r.hgoal != r.vgoal else
               ("R" if r.hgoal == r.vgoal else "P")) for r in razem.itertuples()]
         czesci.append(f"<details><summary>Wszystkie mecze pary: {mecze(len(razem))}, u siebie i na wyjeździe</summary>"
                       f'<p class="podsum">{e(p.h)} – wygrane: {z.count("W")} · remisy: {z.count("R")} · '
-                      f'porażki: {z.count("P")} (W/R/P z perspektywy {e(p.h)})</p>{_tabela_pary(razem, p.h)}</details>')
+                      f'porażki: {z.count("P")} (W/R/P z perspektywy {e(p.h)}'
+                      f'{"; " + e(zakres) if zakres else ""})</p>{_tabela_pary(razem, p.h)}</details>')
     return f'<details class="wyniki"><summary>{e(tytul)}</summary>{"".join(czesci)}</details>'
 
 
@@ -454,6 +534,8 @@ def seria_html(p, t):
     znaczniki = {i: et for i, et in zip(df.index, etykiety) if et}
     teraz = sum(1 for et in etykiety if et == "teraz")
     gdzie = f"mecze u {p.h} z {p.v}" if uklad == "u" else f"wszystkie mecze {p.h} z {p.v} (u siebie i na wyjeździe)"
+    if _opis_zakresu(p):
+        gdzie += f" – {_opis_zakresu(p)}"
     legenda = f'<span class="lg teraz">obecna seria – {mecze(teraz)}</span>'
     if wczesniejsze:
         spis = ", ".join(f"{od.year}–{do.year} ({mecze(n)})" if od.year != do.year else f"{od.year} ({mecze(n)})"
@@ -505,6 +587,9 @@ def _dane_html(info):
     li = []
     if info.get("zrodlo_biezace"):
         li.append(f"<b>Najbliższe mecze:</b> {e(info['zrodlo_terminarza'])}{pobrano}. Godziny w czasie polskim.")
+    kraje = info.get("kraje") or []
+    if len(kraje) > 1:
+        return _dane_html_kraje(info, li, pobrano)
     li.append(f"<b>Historia:</b> {_mecze_tys(info['liczba'])} ligowych z 4 najwyższych poziomów, "
               f"od {fmt(info['pierwszy'])} do {fmt(info['koniec'])}:")
     for nazwa, (n, od, do, sezony) in info["zrodla"].items():
@@ -522,23 +607,63 @@ def _dane_html(info):
               "1973/74 (jeden nierozegrany mecz). Baraże i puchary nie są uwzględnione.")
     li.append("Kontrola: w sezonach 1993/94, 2000/01, 2010/11 i 2020/21–2024/25 wyniki i daty z archiwum zgadzają się "
               "z football-data.co.uk (1 różnica na ok. 16 tys. meczów: Bristol Rovers – Barnet 26.03.1994).")
+    li += _stan_lig_html(info)
+    li += _skutecznosc_html(info)
+    return ('<details class="dane"><summary>Skąd dane i czy są kompletne</summary><ul>'
+            + "".join(f"<li>{x}</li>" for x in li) + "</ul></details>")
+
+
+def _stan_lig_html(info):
+    out = []
+    for k in info.get("kraje") or []:
+        czesci = []
+        for st in k["ligi"]:
+            if st.koniec is None:
+                continue
+            c = f"{e(st.nazwa)} do {fmt(st.koniec)}" + (f" (+{_tys(st.dopisane)} ze źródła bieżącego)" if st.dopisane else "")
+            if st.ostrzezenie:
+                c += f' – <span class="uw">{e(st.ostrzezenie)}</span>'
+            czesci.append(c)
+        if czesci:
+            out.append(f"<b>Stan danych – {e(k['nazwa'])}:</b> " + "; ".join(czesci) + ".")
+    return out
+
+
+def _dane_html_kraje(info, li, pobrano):
+    """Sekcja „Skąd dane” dla kilku krajów: zakres i kompletność każdego kraju, stan lig, skuteczność."""
+    li.append(f"<b>Historia:</b> {_mecze_tys(info['liczba'])} ligowych z {len(info['kraje'])} krajów "
+              "(archiwum engsoccerdata, github.com/jalapic/engsoccerdata, do maja–czerwca 2025, potem "
+              f"{e(info.get('zrodlo_biezace') or 'brak danych bieżących')}). Smaczek „nigdy” tylko tam, gdzie archiwum "
+              "ma całą historię rozgrywek; przy wycinku historii: „w żadnym z N meczów … (dane od X)”.")
+    for k in info["kraje"]:
+        kr = C.KRAJE[k["kraj"]]
+        z = k["zakres"]
+        poziomy = ", ".join(st.nazwa for st in k["ligi"])
+        uz = f" Uzupełniony sezon {_sezony(k['uzupelnione'])} (brak w archiwum)." if k.get("uzupelnione") else ""
+        li.append(f"<b>{e(k['nazwa'])}</b> ({e(poziomy)}): {_mecze_tys(k['liczba'])}, {fmt(k['pierwszy'])} – "
+                  f"{fmt(k['koniec'])}; {'pełna historia' if kr.pelna else 'wycinek historii'}: {e(kr.uwagi)}."
+                  + (f" W smaczkach: „{e(z.w)}”." if z.w else "") + uz)
+    li += _stan_lig_html(info)
+    li += _skutecznosc_html(info, " (test na 4 ligach angielskich)")
+    return ('<details class="dane"><summary>Skąd dane i czy są kompletne</summary><ul>'
+            + "".join(f"<li>{x}</li>" for x in li) + "</ul></details>")
+
+
+def _skutecznosc_html(info, gdzie=""):
+    li = []
     skut = info.get("skutecznosc")
     if skut and skut.get("wspolny_1X2"):
         b = {t: x for t, x in skut["bazowe"].items() if x.get("zwrot") is not None}
         g = skut.get("ostateczny_z_kursem") or skut["wspolny_1X2"]
         li.append(f"<b>Typ meczu:</b> część wspólna typów ze wszystkich serii pary (zakłada, że serie potrwają), osobno "
                   f"dla 1X2, goli i „obie strzelą”; ostateczny typ – rynek z najdłuższą serią, przy równej długości z najwyższym kursem. Sprawdzone na "
-                  f"{_mecze_tys(skut['meczow'])} z sezonów {skut['okres']} ze średnimi kursami rynkowymi: ostateczny "
+                  f"{_mecze_tys(skut['meczow'])} z sezonów {skut['okres']}{gdzie} ze średnimi kursami rynkowymi: ostateczny "
                   f"typ trafiał w {g['trafione'] * 100:.0f}% i dawał zwrot {_procent(g['zwrot'])} na postawioną "
                   "złotówkę; "
                   f"obstawianie wszystkich meczów na ślepo: od {_procent(max(x['zwrot'] for x in b.values()))} "
                   f"do {_procent(min(x['zwrot'] for x in b.values()))}. Bukmacherzy znają te serie – to nie są typy "
                   "z przewagą nad kursem.")
-    return ('<details class="dane"><summary>Skąd dane i czy są kompletne</summary><ul>'
-            + "".join(f"<li>{x}</li>" for x in li) + "</ul></details>")
-
-
-LIGI_KOLEJNOSC = [nazwa for nazwa, _, _ in C.LIGI.values()]
+    return li
 
 
 def _predykcja_html(pr, skut, tytul="Ostateczna predykcja dnia", typy=None):
@@ -548,7 +673,8 @@ def _predykcja_html(pr, skut, tytul="Ostateczna predykcja dnia", typy=None):
     if typy:
         lista = ('<div class="lista"><b>Wszystkie typy dnia</b><span class="pw">od najdłuższej serii</span><ol>'
                  + "".join(f'<li class="{"pierwszy" if i == 0 else ""}"><details class="seria"><summary>'
-                           f'{e(typ_linia(p, t))}</summary>{seria_html(p, t)}</details></li>'
+                           + (f'<span class="tag">{e(p.liga)}</span> ' if p.liga else "")
+                           + f'{e(typ_linia(p, t))}</summary>{seria_html(p, t)}</details></li>'
                            for i, (p, t) in enumerate(typy)) + "</ol></div>")
     return (f'<div class="predykcja"><b>{e(tytul)}</b><div class="pm">{e(nag)}</div>'
             f'<div class="pt">{e(typ)}</div><div class="pw">{e(why)}</div>'
@@ -569,8 +695,9 @@ def _liga_html(nazwa, mecze_ligi, skut):
 
 
 def raport_html(pozycje, info, dzis, od, do):
-    """Strona: kalendarz dni u góry, po wybraniu dnia rozwijane zakładki 4 lig i ostateczna predykcja dnia."""
+    """Strona: kalendarz dni u góry, po wybraniu dnia kraje z rozwijanymi zakładkami lig i ostateczna predykcja dnia."""
     skut = info.get("skutecznosc")
+    wiele = len(_kraje(info)) > 1
     dni = sorted({p.dzien for p in pozycje if p.dzien})
     przyciski, panele = [], []
     for dzien in dni:
@@ -583,13 +710,13 @@ def raport_html(pozycje, info, dzis, od, do):
             f'<span class="dd">{dzien.day}.{dzien.month:02d}</span>'
             f'<span class="ile">{"★ " + str(gw) if gw else str(sum(1 for p in dnia if p.ma_serie)) + " sm."}'
             f'</span></button>')
-        ligi = [(n, [p for p in dnia if p.liga == n]) for n in LIGI_KOLEJNOSC]
-        inne = [p for p in dnia if p.liga not in LIGI_KOLEJNOSC]
-        if inne:
-            ligi.append(("Inne mecze", inne))
+        tresc = ""
+        for k, ligi in grupy(dnia, info, puste_ligi=not wiele):  # kilka krajów: tylko kraje i ligi z meczami
+            tresc += (f'<h3 class="kraj">{e(k["nazwa"])}</h3>' if wiele else "")
+            tresc += "".join(_liga_html(n, m, skut) for n, m in ligi)
         pr = predykcja(dnia)
         panele.append(f'<section class="dzien" data-d="{iso}"><h2>{e(naglowek_dnia(dzien, dzis))}</h2>'
-                      + "".join(_liga_html(n, m, skut) for n, m in ligi)
+                      + tresc
                       + (_predykcja_html(pr, skut, typy=typy_dnia(dnia)) if pr else
                          '<p class="empty">Brak serii – brak ostatecznej predykcji tego dnia.</p>')
                       + "</section>")
@@ -598,7 +725,8 @@ def raport_html(pozycje, info, dzis, od, do):
         panele.append('<section class="bezdaty"><h2>Mecze bez daty</h2>'
                       + "".join(_karta(p, skut) for p in sorted(bez_daty, key=lambda p: -p.waga)) + "</section>")
     if not pozycje:
-        panele.append(f'<p class="empty">Brak meczów 4 lig angielskich {od:%d.%m} – {do:%d.%m.%Y}.</p>')
+        panele.append(f'<p class="empty">Brak meczów {"włączonych lig" if wiele else "4 lig angielskich"} '
+                      f'{od:%d.%m} – {do:%d.%m.%Y}.</p>')
     kalendarz = f'<nav class="kal">{"".join(przyciski)}</nav>' if przyciski else ""
     ostrz = "".join(f'<div class="warn">{e(o)}</div>' for o in ostrzezenia(info))
     teraz = dt.datetime.now().strftime("%d.%m.%Y %H:%M")
@@ -610,8 +738,7 @@ def raport_html(pozycje, info, dzis, od, do):
 <style>{CSS}</style></head>
 <body><main>
 <h1>Smaczki meczowe</h1>
-<p class="sub">Premier League · Championship · League One · League Two<br>
-historia ligowa od 1888 do {fmt(info['koniec'])} · terminarz na kolejne dni pojawia się kilka dni wcześniej</p>
+<p class="sub">{_podtytul(info)}</p>
 {ostrz}
 {kalendarz}
 {"".join(panele)}
@@ -638,6 +765,15 @@ Wygenerowano {teraz}.</footer>
 </script>
 </body></html>
 """
+
+
+def _podtytul(info):
+    kraje = _kraje(info)
+    if len(kraje) > 1:
+        return (" · ".join(e(k["nazwa"]) for k in kraje) + f"<br>historia ligowa do {fmt(info['koniec'])} "
+                "(zakres danych różny w krajach – na dole) · terminarz na kolejne dni pojawia się kilka dni wcześniej")
+    return ("Premier League · Championship · League One · League Two<br>"
+            f"historia ligowa od 1888 do {fmt(info['koniec'])} · terminarz na kolejne dni pojawia się kilka dni wcześniej")
 
 
 # ---------- powiadomienie ----------

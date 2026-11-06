@@ -55,6 +55,12 @@ class Tmp(unittest.TestCase):
         with open(os.path.join(self.tmp, "england.csv"), "w", encoding="utf-8") as f:
             f.write(ARCHIWUM_CSV)
         self.cache = os.path.join(self.tmp, "cache")
+        # testy CLI na samej Anglii (ligi.json z repo włącza też inne kraje)
+        with open(os.path.join(self.tmp, "ligi.json"), "w", encoding="utf-8") as f:
+            f.write('{"england": [1, 2, 3, 4]}')
+        plik_lig = mock.patch.object(C, "PLIK_LIG", os.path.join(self.tmp, "ligi.json"))
+        plik_lig.start()
+        self.addCleanup(plik_lig.stop)
 
     def tearDown(self):
         self._tmp.cleanup()

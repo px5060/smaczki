@@ -1,0 +1,19 @@
+{
+ "_opis": "Grecja: nazwy z API-Football i football-data.co.uk -> nazwy w archiwum engsoccerdata (greece.csv).",
+ "aliasy": {
+  "OFI Crete": "OFI"
+ },
+ "archiwum": {
+  "Yiannina": "Giannina",
+  "Kalithea": "Kallithea",
+  "Levadiakos": "Levadeiakos",
+  "Proodeytiki": "Proodeftiki",
+  "Veroia": "Veria",
+  "Eth Asteras": "Ethnikos Asteras",
+  "Doxa": "Doxa Dramas"
+ },
+ "nowe_kluby": [],
+ "uwagi": {
+  "_zasada": "Różna pisownia tego samego klubu w archiwum (Levadiakos/Levadeiakos, Veroia/Veria itd.)."
+ }
+}

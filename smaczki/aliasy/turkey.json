@@ -1,0 +1,25 @@
+{
+ "_opis": "Turcja: nazwy z API-Football i football-data.co.uk -> nazwy w archiwum engsoccerdata (turkey.csv).",
+ "aliasy": {
+  "Istanbul Basaksehir": "Buyuksehyr",
+  "Erzurumspor": "Erzurum"
+ },
+ "archiwum": {
+  "Antalya": "Antalyaspor"
+ },
+ "archiwum_sezony": {
+  "Erzurum": {
+   "1998": "Erzurumspor"
+  }
+ },
+ "nowe_kluby": [
+  "Amedspor",
+  "Corum"
+ ],
+ "uwagi": {
+  "Gaziantep FK": "inny klub niż Gaziantepspor",
+  "Kayseri": "dawny Kayserispor (do zamiany nazw w 2004) – osobno",
+  "Istanbul Basaksehir": "nazwa z API-Football; football-data.co.uk i archiwum: Buyuksehyr",
+  "Erzurumspor": "obecny Erzurumspor FK to dawny BB Erzurumspor (w archiwum \"Erzurum\" w 2018 i 2020); \"Erzurumspor\" w archiwum (1998–2000) to inny, dawny klub"
+ }
+}

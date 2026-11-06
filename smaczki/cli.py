@@ -1,4 +1,7 @@
-"""Polecenia: dzis, kolejka, mecz, ranking, nazwy, pobierz.  Uruchamianie: python -m smaczki POLECENIE …"""
+"""Polecenia: dzis, kolejka, mecz, ranking, nazwy, pobierz.  Uruchamianie: python -m smaczki POLECENIE …
+
+Kraje i ligi: plik ligi.json (włączone kraje i poziomy), jednorazowo --ligi spain,italy albo kody lig (E0,D2,SC0).
+"""
 import argparse
 import datetime as dt
 import os
@@ -10,9 +13,11 @@ import pandas as pd
 
 from . import config as C
 from . import skutecznosc
-from .data_loader import BladDanych, Mecz, pobierz_archiwum, zbierz
+from .data_loader import (BladDanych, Mecz, pobierz_archiwum, wczytaj_archiwum, wlaczone_ligi,
+                          wybierz_ligi, zbierz, zbierz_kraje)
+from .names import Nazwy
 from .report import Pozycja, ostateczny_tekst, powiadomienie, raport_html, raport_txt, typ_tekst
-from .rules import fmt, karta_meczu, ostatni_u_gospodarza, ranking, smaczki, wyniki_pary
+from .rules import fmt, karta_meczu, ostatni_u_gospodarza, ranking, smaczki, wyniki_pary, zakres_kraju
 
 if hasattr(sys.stdout, "reconfigure"):  # polskie znaki w konsoli Windows
     for strumien in (sys.stdout, sys.stderr):
@@ -42,22 +47,42 @@ TERMINARZ = {"football-data.co.uk": "football-data.co.uk, plik fixtures.csv (mec
              "API-Football": "API-Football, terminarz sezonu (statusy NS/TBD)"}
 
 
-def _info(dane, wlasny_plik=None):
+def _info_kraju(dane):
     h = dane.hist
     zrodla = {z: (len(g), g.Date.min(), g.Date.max(), sorted(set(g.Season)))
               for z, g in h.groupby("zrodlo", sort=False)}
     zrodla = dict(sorted(zrodla.items(), key=lambda x: x[1][1]))
-    return {"koniec": h.Date.max(), "pierwszy": h.Date.min(), "liczba": len(h), "zrodla": zrodla,
-            "zrodlo": dane.zrodlo, "ostrzezenia": dane.ostrzezenia, "tylko_archiwum": dane.tylko_archiwum,
-            "niedopasowane": dane.nazwy.niedopasowane, "uzupelnione": dane.uzupelnione, "pobrano": dane.pobrano,
-            "zrodlo_biezace": dane.biezace, "skutecznosc": skutecznosc.wczytaj(),
-            "zrodlo_terminarza": f"własny plik {wlasny_plik}" if wlasny_plik else TERMINARZ.get(dane.biezace, "")}
+    return {"kraj": dane.kraj, "nazwa": dane.nazwa_kraju, "zakres": zakres_kraju(dane.kraj, dane.poziomy),
+            "koniec": h.Date.max(), "pierwszy": h.Date.min(), "liczba": len(h), "zrodla": zrodla,
+            "uzupelnione": dane.uzupelnione, "ligi": dane.ligi, "tylko_archiwum": dane.tylko_archiwum,
+            "niedopasowane": {n: dane.nazwy.kandydaci(n) for n in sorted(dane.nazwy.niedopasowane)},
+            "ostrzezenia": dane.ostrzezenia}
+
+
+def _info(dane, wlasny_plik=None):
+    """Informacje o danych do raportu; dane – Dane albo lista Dane (po jednym na kraj)."""
+    lista = dane if isinstance(dane, list) else [dane]
+    kraje = [_info_kraju(d) for d in lista]
+    wiele = len(kraje) > 1
+    pierwszy = lista[0]
+    biezace = next((d.biezace for d in lista if d.biezace), None)
+    pobrano = max((d.pobrano for d in lista if d.pobrano), default=None)
+    zrodlo = next((d.zrodlo for d in lista if d.biezace), pierwszy.zrodlo)
+    ostrz = [(f"{k['nazwa']}: {o}" if wiele else o) for k in kraje for o in k["ostrzezenia"]]
+    return {"koniec": max(k["koniec"] for k in kraje), "pierwszy": min(k["pierwszy"] for k in kraje),
+            "liczba": sum(k["liczba"] for k in kraje), "zrodla": kraje[0]["zrodla"] if not wiele else {},
+            "zrodlo": zrodlo, "ostrzezenia": ostrz, "tylko_archiwum": all(d.tylko_archiwum for d in lista),
+            "niedopasowane": {(k["nazwa"], k["kraj"]): k["niedopasowane"] for k in kraje if k["niedopasowane"]},
+            "uzupelnione": kraje[0]["uzupelnione"] if not wiele else [],
+            "pobrano": pobrano, "zrodlo_biezace": biezace, "skutecznosc": skutecznosc.wczytaj(), "kraje": kraje,
+            "zrodlo_terminarza": f"własny plik {wlasny_plik}" if wlasny_plik else TERMINARZ.get(biezace, "")}
 
 
 def _pozycje(dane, terminarz, dzis):
     """Smaczki dla listy meczów; dla każdego meczu tylko historia sprzed jego daty."""
     przed = {}
     out = []
+    zakres = zakres_kraju(dane.kraj, dane.poziomy)
     for m in terminarz:
         h, v = dane.nazwy(m.home), dane.nazwy(m.away)
         dzien = m.data.date() if m.data else None
@@ -66,23 +91,44 @@ def _pozycje(dane, terminarz, dzis):
         hist = przed[dzien]
         ref = pd.Timestamp(dzien) if dzien else pd.Timestamp(dzis)
         wyn = wyniki_pary(hist, h, v)
-        out.append(Pozycja(m.data, m.liga, h, v, smaczki(hist, h, v, ref), ostatni=ostatni_u_gospodarza(hist, h, v),
-                           wyniki=wyn, kursy=m.kursy))
+        out.append(Pozycja(m.data, m.liga, h, v, smaczki(hist, h, v, ref, zakres),
+                           ostatni=ostatni_u_gospodarza(hist, h, v), wyniki=wyn, kursy=m.kursy,
+                           kraj=dane.kraj, zakres=zakres))
     return out
 
 
+def _liga_z_pliku(tekst):
+    """Kolumna liga w pliku meczów: kod ligi (SP1), nazwa ligi (La Liga) albo kraj (spain) -> (kraj, nazwa ligi)."""
+    t = (tekst or "").strip()
+    if not t:
+        return C.KRAJ_DOMYSLNY, ""
+    if t.upper() in C.LIGA_KRAJ:
+        kraj = C.LIGA_KRAJ[t.upper()]
+        return kraj, C.KRAJE[kraj].ligi[t.upper()][0]
+    for kraj, k in C.KRAJE.items():
+        if t.lower() == kraj:
+            return kraj, ""
+        for nazwa, _, _ in k.ligi.values():
+            if t.lower() == nazwa.lower():
+                return kraj, nazwa
+    sys.exit(f"Plik meczów: nieznana liga „{t}”. Podaj kod ligi ({', '.join(C.LIGA_KRAJ)}), "
+             f"nazwę ligi albo kraj ({', '.join(C.KRAJE)}).")
+
+
 def _plik_meczow(sciezka):
+    """Mecze z pliku CSV: {kraj: [Mecz]} (kolumny home,away[,date,liga])."""
     p = pd.read_csv(sciezka, dtype=str).fillna("")
     if not {"home", "away"} <= set(p.columns):
         sys.exit(f"{sciezka}: potrzebne kolumny home,away (opcjonalnie date,liga).")
-    out = []
+    out = {}
     for r in p.itertuples():
         d = None
         tekst = getattr(r, "date", "").strip()
         if tekst:
             d = pd.to_datetime(tekst, dayfirst="." in tekst, errors="coerce")
             d = None if pd.isna(d) else d.to_pydatetime()
-        out.append(Mecz(d, getattr(r, "liga", ""), r.home.strip(), r.away.strip()))
+        kraj, liga = _liga_z_pliku(getattr(r, "liga", ""))
+        out.setdefault(kraj, []).append(Mecz(d, liga, r.home.strip(), r.away.strip()))
     return out
 
 
@@ -93,9 +139,14 @@ def _zapisz(sciezka, tekst):
 
 
 def _ostrzez_nazwy(dane):
-    if dane.nazwy.niedopasowane:
-        print("OSTRZEŻENIE: brak dopasowania w archiwum dla: " + ", ".join(sorted(dane.nazwy.niedopasowane))
-              + " – jeśli to znany klub, dopisz alias w smaczki/names.py.", file=sys.stderr)
+    """Raport niedopasowanych nazw (po każdym uruchomieniu) z najbliższymi kandydatami z archiwum."""
+    for d in (dane if isinstance(dane, list) else [dane]):
+        if d.nazwy.niedopasowane:
+            lista = "; ".join(f"{n}" + (f" (najbliższe: {', '.join(k)})" if (k := d.nazwy.kandydaci(n)) else "")
+                              for n in sorted(d.nazwy.niedopasowane))
+            print(f"OSTRZEŻENIE ({d.nazwa_kraju}): brak dopasowania w archiwum dla: {lista} – jeśli to znany klub, "
+                  f"dopisz alias w smaczki/aliasy/{d.kraj}.json (albo nazwę do nowe_kluby, jeśli to nowy klub).",
+                  file=sys.stderr)
 
 
 def wyslij_ntfy(temat, tytul, tresc, url=None, znacznik=None, dzien=None):
@@ -126,20 +177,35 @@ def wyslij_ntfy(temat, tytul, tresc, url=None, znacznik=None, dzien=None):
 
 # ---------- polecenia ----------
 
+def _ligi(a):
+    """(kraje -> poziomy, kody lig do terminarza albo None) z ligi.json i opcji --ligi."""
+    return wybierz_ligi(wlaczone_ligi(a.plik_lig), a.ligi)
+
+
 def cmd_terminarz(a, dzienny):
     dzis = _data(a.dzis) if a.dzis else dt.date.today()
     od = _data(a.od) if a.od else dzis
     do = _data(a.do) if a.do else od + dt.timedelta(days=a.dni)
     wlasne = getattr(a, "plik_meczow", None)
-    dane = zbierz(a.archiwum or a.dane, os.path.join(a.dane, "cache"), a.zrodlo, dzis, od, do,
-                  z_terminarzem=not wlasne)
-    terminarz = _plik_meczow(wlasne) if wlasne else dane.terminarz
-    if not terminarz and not dzienny:
-        print("\n".join(dane.ostrzezenia), file=sys.stderr)
+    kraje, kody = _ligi(a)
+    if wlasne:
+        z_pliku = _plik_meczow(wlasne)
+        kraje = {k: kraje.get(k) or wlaczone_ligi(a.plik_lig).get(k) or None for k in C.KRAJE if k in z_pliku}
+    lista = zbierz_kraje(a.archiwum or a.dane, os.path.join(a.dane, "cache"), a.zrodlo, dzis, od, do, kraje,
+                         z_terminarzem=not wlasne)
+    nazwy_lig = None if kody is None else {C.KRAJE[C.LIGA_KRAJ[k]].ligi[k][0] for k in kody}
+    pozycje, terminarz_razem = [], 0
+    for dane in lista:
+        terminarz = z_pliku[dane.kraj] if wlasne else dane.terminarz
+        if nazwy_lig is not None:
+            terminarz = [m for m in terminarz if m.liga in nazwy_lig]
+        terminarz_razem += len(terminarz)
+        pozycje += _pozycje(dane, terminarz, dzis)
+    if not terminarz_razem and not dzienny:
+        print("\n".join(o for d in lista for o in d.ostrzezenia), file=sys.stderr)
         sys.exit(f"Brak meczów do rozegrania w okresie {od} – {do}.")
-    pozycje = _pozycje(dane, terminarz, dzis)
-    _ostrzez_nazwy(dane)
-    info = _info(dane, wlasne)
+    _ostrzez_nazwy(lista)
+    info = _info(lista, wlasne)
     tytul = f"SMACZKI {'DNIA' if dzienny else 'KOLEJKI'} {od:%d.%m.%Y} – {do:%d.%m.%Y}"
     tekst = raport_txt(pozycje, info, tytul, wszystkie=a.wszystkie, po_dniach=dzienny)
     print(tekst)
@@ -161,7 +227,9 @@ def _znajdz(dane, nazwa):
     n = dane.nazwy
     wynik = n(nazwa)
     if wynik in n.niedopasowane or wynik not in n.ostatni_mecz:
-        sys.exit(f"Nie znaleziono drużyny '{nazwa}' w historii.")
+        kand = n.kandydaci(nazwa)
+        sys.exit(f"Nie znaleziono drużyny '{nazwa}' w historii ({dane.nazwa_kraju})."
+                 + (f" Najbliższe: {', '.join(kand)}." if kand else ""))
     kand = [t for t in n.druzyny if nazwa.lower() in t.lower()]
     if nazwa not in n.ostatni_mecz and len(kand) > 1:
         ostatnie = sorted((n.ostatni_mecz[t] for t in kand), reverse=True)
@@ -170,27 +238,51 @@ def _znajdz(dane, nazwa):
     return wynik
 
 
+def _kraj_pary(a, kraje, gospodarz, gosc):
+    """Kraj, w którego archiwum obie drużyny pasują najpewniej (przy równej pewności – pierwszy z listy)."""
+    if len(kraje) == 1:
+        return next(iter(kraje.items()))
+    najlepszy, wynik = None, -1
+    for kraj, poziomy in kraje.items():
+        try:
+            hist = wczytaj_archiwum(a.archiwum or a.dane, kraj, poziomy)
+        except BladDanych as e:
+            print(f"UWAGA: {e}", file=sys.stderr)
+            continue
+        n = Nazwy(hist, kraj)
+        jakosc = min(n.jakosc(gospodarz), n.jakosc(gosc))
+        if jakosc > wynik:
+            najlepszy, wynik = (kraj, poziomy), jakosc
+    if najlepszy is None or wynik <= 0:
+        sys.exit(f"Nie znaleziono pary '{gospodarz}' – '{gosc}' w archiwach: {', '.join(kraje)}. "
+                 "Podaj kraj: --ligi spain")
+    return najlepszy
+
+
 def cmd_mecz(a):
     dzis = dt.date.today()
+    kraj, poziomy = _kraj_pary(a, _ligi(a)[0], a.gospodarz, a.gosc)
     dane = zbierz(a.archiwum or a.dane, os.path.join(a.dane, "cache"), a.zrodlo, dzis, dzis, dzis,
-                  z_terminarzem=False)
+                  z_terminarzem=False, kraj=kraj, poziomy=poziomy)
     for o in dane.ostrzezenia:
         print("UWAGA: " + o)
+    zakres = zakres_kraju(kraj, dane.poziomy)
     h, v = _znajdz(dane, a.gospodarz), _znajdz(dane, a.gosc)
-    print(f"=== {h} – {v} ===  (historia ligowa do {dane.hist.Date.max():%d.%m.%Y}; {dane.zrodlo})")
-    fakty = smaczki(dane.hist, h, v, pd.Timestamp(dzis))
+    kraj_txt = "" if kraj == C.KRAJ_DOMYSLNY else f"{dane.nazwa_kraju}; "
+    print(f"=== {h} – {v} ===  ({kraj_txt}historia ligowa do {dane.hist.Date.max():%d.%m.%Y}; {dane.zrodlo})")
+    fakty = smaczki(dane.hist, h, v, pd.Timestamp(dzis), zakres)
     if fakty:
         print("Smaczki:")
         skut = skutecznosc.wczytaj()
         for f in fakty:
             print(("  ★ " if f.waga >= C.PROG_DNIA else "  • ") + f.tekst + (f"  [{f.typ}]" if f.typ else ""))
-        poz = Pozycja(None, "", h, v, fakty)
+        poz = Pozycja(None, "", h, v, fakty, kraj=kraj, zakres=zakres)
         for t in poz.wspolne:
             print(f"  ⇒ Typ meczu – {typ_tekst(t, poz, skut)}")
         if ostateczny_tekst(poz, skut):
             print(f"  ★ {ostateczny_tekst(poz, skut)}")
     print("Karta pary:")
-    for linia in karta_meczu(dane.hist, h, v):
+    for linia in karta_meczu(dane.hist, h, v, zakres=zakres):
         print("  • " + linia)
     if a.wyniki:
         u = wyniki_pary(dane.hist, h, v)["u_gosp"]
@@ -205,29 +297,46 @@ def cmd_mecz(a):
 
 def cmd_ranking(a):
     dzis = dt.date.today()
-    dane = zbierz(a.archiwum or a.dane, os.path.join(a.dane, "cache"), a.zrodlo, dzis, dzis, dzis,
-                  z_terminarzem=False)
-    for o in dane.ostrzezenia:
-        print("UWAGA: " + o)
-    liga = f", {C.LIGA_PO_TIER[a.tier]}" if a.tier else ""
-    print(f"=== Najdłuższe passy gości bez wygranej u danego rywala{liga} "
-          f"(pary grające ze sobą w ostatnich {C.RANKING_LAT} latach; historia do {dane.hist.Date.max():%d.%m.%Y}) ===")
-    for linia in ranking(dane.hist, a.top, a.tier):
-        print("• " + linia)
+    kraje = _ligi(a)[0] if a.ligi else {C.KRAJ_DOMYSLNY: wlaczone_ligi(a.plik_lig).get(C.KRAJ_DOMYSLNY)}
+    for kraj, poziomy in kraje.items():
+        dane = zbierz(a.archiwum or a.dane, os.path.join(a.dane, "cache"), a.zrodlo, dzis, dzis, dzis,
+                      z_terminarzem=False, kraj=kraj, poziomy=poziomy)
+        for o in dane.ostrzezenia:
+            print("UWAGA: " + o)
+        ligi = {t: n for n, t, _ in C.KRAJE[kraj].ligi.values()}
+        if a.tier and a.tier not in dane.poziomy:
+            print(f"{dane.nazwa_kraju}: brak poziomu {a.tier} w danych (są: {', '.join(map(str, dane.poziomy))}).")
+            continue
+        liga = f", {ligi[a.tier]}" if a.tier else ""
+        kraj_txt = "" if kraj == C.KRAJ_DOMYSLNY else f"{dane.nazwa_kraju}: "
+        zakres = zakres_kraju(kraj, dane.poziomy)
+        print(f"=== {kraj_txt}Najdłuższe passy gości bez wygranej u danego rywala{liga} "
+              f"(pary grające ze sobą w ostatnich {C.RANKING_LAT} latach; historia do {dane.hist.Date.max():%d.%m.%Y}"
+              + (f"; {zakres.opis}" if zakres.opis else "") + ") ===")
+        for linia in ranking(dane.hist, a.top, a.tier, zakres=zakres):
+            print("• " + linia)
 
 
 def cmd_nazwy(a):
-    """Kontrola dopasowania: nazwy z bieżącego źródła -> nazwy w archiwum."""
+    """Kontrola dopasowania: nazwy z bieżącego źródła (wyniki i terminarz na 14 dni) -> nazwy w archiwum."""
     dzis = dt.date.today()
-    dane = zbierz(a.archiwum or a.dane, os.path.join(a.dane, "cache"), a.zrodlo, dzis, dzis,
-                  dzis + dt.timedelta(days=14))
-    for o in dane.ostrzezenia:
-        print("UWAGA: " + o)
-    for m in dane.terminarz:
-        dane.nazwy(m.home), dane.nazwy(m.away)
-    for zrodlowa, archiwum in dane.nazwy.mapa().items():
-        znak = "!!" if zrodlowa in dane.nazwy.niedopasowane else ("= " if zrodlowa == archiwum else "->")
-        print(f"{znak} {zrodlowa:28} {archiwum if znak != '!!' else '(brak w archiwum – nowy klub?)'}")
+    lista = zbierz_kraje(a.archiwum or a.dane, os.path.join(a.dane, "cache"), a.zrodlo, dzis, dzis,
+                         dzis + dt.timedelta(days=14), _ligi(a)[0])
+    for dane in lista:
+        print(f"===== {dane.nazwa_kraju} (aliasy: smaczki/aliasy/{dane.kraj}.json)")
+        for o in dane.ostrzezenia:
+            print("UWAGA: " + o)
+        for m in dane.terminarz:
+            dane.nazwy(m.home), dane.nazwy(m.away)
+        for zrodlowa, archiwum in dane.nazwy.mapa().items():
+            if zrodlowa in dane.nazwy.niedopasowane:
+                kand = dane.nazwy.kandydaci(zrodlowa)
+                print(f"!! {zrodlowa:28} (brak w archiwum – nowy klub?" + (f" najbliższe: {', '.join(kand)}" if kand else "")
+                      + ")")
+            elif zrodlowa in dane.nazwy.nowe:
+                print(f"+  {zrodlowa:28} (nowy klub bez historii w danych – lista nowe_kluby)")
+            else:
+                print(f"{'= ' if zrodlowa == archiwum else '->'} {zrodlowa:28} {archiwum}")
 
 
 def cmd_skutecznosc(a):
@@ -260,16 +369,21 @@ def cmd_skutecznosc(a):
 
 
 def cmd_pobierz(a):
-    plik = pobierz_archiwum(a.archiwum or a.dane, wymus=a.wymus)
-    print(f"Archiwum gotowe: {plik}")
+    for kraj in _ligi(a)[0]:
+        plik = pobierz_archiwum(a.archiwum or a.dane, wymus=a.wymus, kraj=kraj)
+        print(f"Archiwum gotowe: {plik}")
 
 
 def main(argv=None):
     wczytaj_env()
-    ap = argparse.ArgumentParser(prog="python -m smaczki", description="Smaczki meczowe – 4 ligi angielskie.")
+    ap = argparse.ArgumentParser(prog="python -m smaczki", description="Smaczki meczowe – serie w pojedynkach par (Anglia i inne ligi z ligi.json).")
     wspolne = argparse.ArgumentParser(add_help=False)
     wspolne.add_argument("--dane", default="dane", help="folder na archiwum i cache (domyślnie dane)")
-    wspolne.add_argument("--archiwum", help="własna ścieżka do england.csv albo engsoccerdata/data-raw")
+    wspolne.add_argument("--archiwum", help="własna ścieżka do folderu z plikami krajów (england.csv, spain.csv …), "
+                                            "np. engsoccerdata/data-raw")
+    wspolne.add_argument("--ligi", help="zawężenie do krajów albo lig, np. spain,italy albo E0,D2,SC0 "
+                                        "(domyślnie wszystko z ligi.json)")
+    wspolne.add_argument("--plik-lig", default=C.PLIK_LIG, help=f"plik z włączonymi ligami (domyślnie {C.PLIK_LIG})")
     wspolne.add_argument("--zrodlo", default="auto", choices=["auto", "fd", "api", "brak"],
                          help="dane bieżące: auto (API-Football, gdy jest klucz, inaczej football-data.co.uk), "
                               "fd, api albo brak (samo archiwum)")
@@ -291,7 +405,8 @@ def main(argv=None):
 
     p = sub.add_parser("kolejka", parents=[wspolne], help="terminarz na N dni albo z pliku CSV")
     terminarzowe(p, 7, "raport_kolejka.txt")
-    p.add_argument("--plik-meczow", help="CSV z kolumnami home,away[,date,liga] zamiast terminarza ze źródła")
+    p.add_argument("--plik-meczow", help="CSV z kolumnami home,away[,date,liga] zamiast terminarza ze źródła; "
+                                         "liga = kod ligi (E0, SP1, D2 …), nazwa ligi albo kraj; puste = Anglia")
     p.add_argument("--html", help="opcjonalnie także strona HTML")
 
     p = sub.add_parser("mecz", parents=[wspolne], help="pełna informacja o jednej parze")
@@ -301,12 +416,13 @@ def main(argv=None):
 
     p = sub.add_parser("ranking", parents=[wspolne], help="najdłuższe passy gości bez wygranej")
     p.add_argument("--top", type=int, default=25)
-    p.add_argument("--tier", type=int, choices=[1, 2, 3, 4], help="tylko pary, których ostatni mecz był w tej lidze")
+    p.add_argument("--tier", type=int, choices=[1, 2, 3, 4], help="tylko pary, których ostatni mecz był w tej lidze "
+                                                                     "(kraj: --ligi, domyślnie Anglia)")
 
     sub.add_parser("nazwy", parents=[wspolne], help="kontrola dopasowania nazw drużyn")
     p = sub.add_parser("skutecznosc", parents=[wspolne], help="przelicz skuteczność typów na historii z kursami")
     p.add_argument("--od-sezonu", type=int, default=2005, help="pierwszy sezon testu (domyślnie 2005 = 2005/06)")
-    p = sub.add_parser("pobierz", parents=[wspolne], help="pobierz archiwum engsoccerdata")
+    p = sub.add_parser("pobierz", parents=[wspolne], help="pobierz archiwa engsoccerdata włączonych krajów")
     p.add_argument("--wymus", action="store_true", help="pobierz ponownie, nawet jeśli plik już jest")
 
     a = ap.parse_args(argv)

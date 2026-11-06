@@ -1,0 +1,11 @@
+{
+ "_opis": "Szkocja: nazwy z API-Football i football-data.co.uk -> nazwy w archiwum engsoccerdata (scotland.csv).",
+ "aliasy": {},
+ "archiwum": {},
+ "nowe_kluby": [
+  "East Kilbride"
+ ],
+ "uwagi": {
+  "Airdrie Utd": "obecny klub (dawny Clydebank, od 2002; dziś znów Airdrieonians); \"Airdrie\" w archiwum to Airdrieonians rozwiązany w 2002 – osobno"
+ }
+}

@@ -1,0 +1,13 @@
+{
+ "_opis": "Włochy: nazwy z API-Football i football-data.co.uk -> nazwy w archiwum engsoccerdata (italy.csv).",
+ "aliasy": {},
+ "archiwum": {
+  "Parma AC": "Parma FC",
+  "Salernitana Sport": "Salernitana Calcio 1919",
+  "US Livorno": "AS Livorno"
+ },
+ "nowe_kluby": [],
+ "uwagi": {
+  "_zasada": "We Włoszech klub odbudowany po upadłości zachowuje historię (tak liczy ją FIGC), więc archiwum łączy np. Parma AC i Parma FC."
+ }
+}

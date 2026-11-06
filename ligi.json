@@ -1,0 +1,14 @@
+{
+ "_opis": "Włączone kraje i poziomy lig (1 = najwyższa liga). Żeby wyłączyć kraj, usuń go albo zostaw pustą listę. Dostępne kraje i poziomy: smaczki/config.py (KRAJE). Jednorazowe zawężenie: python -m smaczki dzis --ligi spain,italy",
+ "england": [1, 2, 3, 4],
+ "spain": [1],
+ "italy": [1],
+ "germany": [1, 2],
+ "france": [1],
+ "holland": [1],
+ "portugal": [1],
+ "scotland": [1, 2, 3, 4],
+ "belgium": [1],
+ "turkey": [1],
+ "greece": [1]
+}

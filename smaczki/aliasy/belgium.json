@@ -1,0 +1,23 @@
+{
+ "_opis": "Belgia: nazwy z API-Football i football-data.co.uk -> nazwy w archiwum engsoccerdata (belgium.csv).",
+ "aliasy": {
+  "St. Gilloise": "Royal Union Saint-Gilloise",
+  "Beveren": "Waasland-Beveren"
+ },
+ "archiwum": {},
+ "archiwum_sezony": {
+  "Molenbeek": {
+   "2023": "RWD Molenbeek"
+  }
+ },
+ "nowe_kluby": [
+  "Lommel SK",
+  "RAAL La Louviere"
+ ],
+ "uwagi": {
+  "Beveren": "obecny SK Beveren to dawny Waasland-Beveren (fuzja 2010); \"Beveren\" w archiwum to KSK Beveren (do 2010)",
+  "Lommel SK": "obecny klub (dawny KVSK United); \"Lommel\" w archiwum to KFC Lommel SK rozwiązany w 2003",
+  "RAAL La Louviere": "klub od 2009; \"Louvieroise\" w archiwum to RAA Louvieroise rozwiązana w 2009",
+  "RWD Molenbeek": "obecny RWDM (od 2015) – inny klub niż RWD Molenbeek rozwiązany w 2002 (\"Molenbeek\" w archiwum)"
+ }
+}
