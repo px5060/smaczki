@@ -17,7 +17,8 @@ from .data_loader import (BladDanych, Mecz, pobierz_archiwum, wczytaj_archiwum, 
                           wybierz_ligi, zbierz, zbierz_kraje)
 from .names import Nazwy
 from .report import Pozycja, ostateczny_tekst, powiadomienie, raport_html, raport_txt, typ_tekst
-from .rules import fmt, karta_meczu, ostatni_u_gospodarza, ranking, smaczki, wyniki_pary, zakres_kraju
+from .rules import (fmt, karta_meczu, ostatni_u_gospodarza, ranking, smaczki, stawki_sezonow, wyniki_pary,
+                    zakres_kraju)
 
 if hasattr(sys.stdout, "reconfigure"):  # polskie znaki w konsoli Windows
     for strumien in (sys.stdout, sys.stderr):
@@ -93,7 +94,7 @@ def _pozycje(dane, terminarz, dzis):
         wyn = wyniki_pary(hist, h, v)
         out.append(Pozycja(m.data, m.liga, h, v, smaczki(hist, h, v, ref, zakres),
                            ostatni=ostatni_u_gospodarza(hist, h, v), wyniki=wyn, kursy=m.kursy,
-                           kraj=dane.kraj, zakres=zakres))
+                           kraj=dane.kraj, zakres=zakres, stawki=stawki_sezonow(hist)))
     return out
 
 

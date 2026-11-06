@@ -321,8 +321,22 @@ class TestSeriePary(unittest.TestCase):
         html = seria_html(p, typ_ostateczny([f]))
         self.assertEqual(html.count('<tr class="teraz">'), 5)
         self.assertEqual(html.count('<tr class="dawniej">'), 5)
-        self.assertIn("Wcześniejsze serie: 1990–1994 (5 meczów).", html)
+        self.assertIn("Wcześniejsze serie: 1990–1994: A wygrał u siebie 5 razy z rzędu; "
+                      "1990–1994: ten sam wynik 1:0 5 razy z rzędu.", html)
         self.assertIn('<tr class="g">', html)  # mecz, który przerwał serię (wygrana B) – bez tła
+
+    def test_wczesniejsze_serie_innego_rodzaju_na_niebiesko(self):
+        """Niebieskie są wcześniejsze serie między drużynami każdego rodzaju, nie tylko takie jak obecny smaczek."""
+        from smaczki.report import seria_html
+        from smaczki.rules import typ_ostateczny, wyniki_pary
+        w = ([(1990 + i, "A", 1, 1) for i in range(4)] + [(1994, "A", 0, 2)] + [(1995 + i, "A", 3, 0) for i in range(5)])
+        h = para(w)
+        f = Fakt(30, "A wygrał u siebie z B 5 razy z rzędu", typ="1", regula="u:W", n=5)
+        p = Pozycja(None, "", "A", "B", [f], wyniki=wyniki_pary(h, "A", "B"))
+        html = seria_html(p, typ_ostateczny([f]))
+        self.assertEqual(html.count('<tr class="teraz">'), 5)
+        self.assertEqual(html.count('<tr class="x dawniej">'), 4)  # 4 remisy z rzędu 1990–1993 – inny rodzaj serii
+        self.assertIn("1990–1993: 4 remisy z rzędu", html)
 
     def test_smaczek_rozwija_mecze_serii_i_seria_w_wynikach(self):
         from smaczki.report import _karta

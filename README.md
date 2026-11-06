@@ -88,9 +88,12 @@ ma dopisek „brak smaczków”. Na dole dnia **ostateczna predykcja dnia** i po
 w jednej linii (godzina, mecz, ostateczny typ, kurs, długość serii), od najdłuższej serii.
 
 Kliknięcie w **smaczek** („mecze serii ▾”), w typ na liście typów dnia albo w „★ OSTATECZNY TYP” przy meczu rozwija
-mecze pary, z których wynika seria: **obecna seria na zielono**, **wcześniejsze, przerwane serie tego samego rodzaju na niebiesko** (od progu
-długości, np. 4 mecze dla 1X2, 8 dla goli), mecze, które przerywały serie – bez tła. Pod legendą spis wcześniejszych
-serii z latami, np. „1965–1980 (7 meczów), 1947–1952 (6 meczów)”.
+mecze pary, z których wynika seria: **obecna seria na zielono**, **wcześniejsze serie między drużynami na niebiesko** –
+każdego rodzaju, nie tylko takie jak obecny smaczek (wygrane, remisy, „bez wygranej”, „bez remisu”, gole, ten sam wynik),
+o ile w chwili przerwania spełniały próg smaczka (ta sama zasada co dla obecnych serii); pozostałe mecze – bez tła.
+Pod legendą spis wcześniejszych serii z latami, np. „2008–2020: Birmingham City bez wygranej z Swansea City – 6 meczów;
+1982–1995: poniżej 2.5 bramki 10 razy z rzędu; 1953–1980: Birmingham City wygrał 6 razy z rzędu”. To samo zaznaczenie
+(zielone i niebieskie) jest w tabelach „Pokaż wyniki”.
 
 ### Podgląd wyników
 
