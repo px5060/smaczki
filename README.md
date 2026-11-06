@@ -87,8 +87,8 @@ kliknięcie kafelka go zamyka. Wybrany dzień i kraj są zapamiętane w adresie 
 ma dopisek „brak smaczków”. Na dole dnia **ostateczna predykcja dnia** i pod nią **wszystkie typy dnia**: każdy mecz z serią
 w jednej linii (godzina, mecz, ostateczny typ, kurs, długość serii), od najdłuższej serii.
 
-Kliknięcie w typ (na liście typów dnia albo w „★ OSTATECZNY TYP” przy meczu) rozwija mecze pary, z których wynika
-seria: **obecna seria na zielono**, **wcześniejsze, przerwane serie tego samego rodzaju na niebiesko** (od progu
+Kliknięcie w **smaczek** („mecze serii ▾”), w typ na liście typów dnia albo w „★ OSTATECZNY TYP” przy meczu rozwija
+mecze pary, z których wynika seria: **obecna seria na zielono**, **wcześniejsze, przerwane serie tego samego rodzaju na niebiesko** (od progu
 długości, np. 4 mecze dla 1X2, 8 dla goli), mecze, które przerywały serie – bez tła. Pod legendą spis wcześniejszych
 serii z latami, np. „1965–1980 (7 meczów), 1947–1952 (6 meczów)”.
 
@@ -96,7 +96,10 @@ serii z latami, np. „1965–1980 (7 meczów), 1947–1952 (6 meczów)”.
 
 Na stronie każdy mecz ma przycisk **„Pokaż wyniki”**: wszystkie mecze ligowe u gospodarza z tym rywalem (od najnowszego,
 z bilansem; wygrane gości wyróżnione), a niżej rozwijane **rewanże** (mecze u gościa) i **wszystkie mecze pary**
-(u siebie i na wyjeździe, W/R/P z perspektywy gospodarza). Wyniki spoza archiwum engsoccerdata są oznaczone „°”. Na dole strony sekcja
+(u siebie i na wyjeździe, W/R/P z perspektywy gospodarza). **Mecze obecnej serii są tam zaznaczone na zielono**: w tabeli
+meczów u gospodarza – najdłuższa seria „u gospodarza”, we wszystkich meczach pary – najdłuższa seria „u siebie i na
+wyjeździe” (gdy smaczek dotyczy tylko takiej serii, ta tabela jest od razu rozwinięta). Wyniki spoza archiwum
+engsoccerdata są oznaczone „°”. Na dole strony sekcja
 **„Skąd dane i czy są kompletne”** pokazuje, ile meczów pochodzi z którego źródła. W konsoli to samo daje
 `python -m smaczki mecz "Derby" "Bolton" --wyniki`.
 

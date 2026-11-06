@@ -324,6 +324,23 @@ class TestSeriePary(unittest.TestCase):
         self.assertIn("Wcześniejsze serie: 1990–1994 (5 meczów).", html)
         self.assertIn('<tr class="g">', html)  # mecz, który przerwał serię (wygrana B) – bez tła
 
+    def test_smaczek_rozwija_mecze_serii_i_seria_w_wynikach(self):
+        from smaczki.report import _karta
+        from smaczki.rules import wyniki_pary
+        # B nie wygrał z A od 2010 (u siebie i na wyjeździe): seria h2h, bez serii „u gospodarza”
+        w = [(2009, "A", 0, 1)] + [(2010 + i, g, 1, 1) for i in range(3) for g in ("A", "B")]
+        h = para(w)
+        f = Fakt(30, "B nie wygrał z A od 2009 r. (6 meczów, u siebie i na wyjeździe)", typ="1X",
+                 regula="h2h:nieP", n=6)
+        p = Pozycja(None, "", "A", "B", [f], wyniki=wyniki_pary(h, "A", "B"))
+        html = _karta(p)
+        self.assertIn('<details class="seria fakt"><summary>B nie wygrał z A od 2009 r.', html)
+        self.assertIn('<span class="pokaz">mecze serii</span>', html)
+        # po 6 zielonych meczów: pod smaczkiem, pod ostatecznym typem i we „Wszystkich meczach pary” (Pokaż wyniki)
+        self.assertEqual(html.count('class="teraz"') + html.count('class="x teraz"'), 18)
+        self.assertIn("jest zaznaczona w tabeli „Wszystkie mecze pary” niżej", html)
+        self.assertIn("<details open><summary>Wszystkie mecze pary: 7 meczów", html)
+
     def test_gosc_wygrywa_seria_2(self):
         from smaczki.rules import smaczki
         w = [(1990, "A", 3, 0)] + [(r, "A", 0, 1) for r in range(1991, 1997)] + \

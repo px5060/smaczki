@@ -6,8 +6,8 @@ from dataclasses import dataclass
 import pandas as pd
 
 from . import config as C
-from .rules import (fmt, klucz_wyboru, kurs_typu, mecze, min_dlugosc, odmiana, przebieg_serii, rynek_typu,
-                    typ_ostateczny, typy_wspolne)
+from .rules import (TypWspolny, fmt, klucz_wyboru, kurs_typu, mecze, min_dlugosc, odmiana, przebieg_serii,
+                    rynek_typu, typ_ostateczny, typy_wspolne)
 
 DNI = ["poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota", "niedziela"]
 DNI_KROTKO = ["pn", "wt", "śr", "czw", "pt", "sob", "nd"]
@@ -434,6 +434,14 @@ details.seria>summary::-webkit-details-marker{display:none}
 details.seria>summary::after{content:" ▾";color:var(--muted);font-weight:400}
 details.seria[open]>summary::after{content:" ▴"}
 details.seria .opis{font-size:.8rem;color:var(--muted);margin:.35rem 0 .3rem;font-weight:400}
+details.fakt>summary::after,details.fakt[open]>summary::after{content:none}
+details.fakt .wfakt{margin-left:-1.1rem}
+@media (max-width:420px){td,th{padding:.2rem .18rem}}
+details.fakt .pokaz{font-size:.72rem;font-weight:600;color:var(--accent);white-space:nowrap}
+details.fakt .pokaz::after{content:" ▾"}
+details.fakt[open] .pokaz::after{content:" ▴"}
+details.fakt[open]{margin-bottom:.5rem}
+li.mocny details.fakt table,li.mocny details.fakt .opis,li.mocny details.fakt .legenda{font-weight:400}
 tr.x td{color:var(--muted)}
 sup{color:var(--muted)}
 .legenda{font-size:.75rem;color:var(--muted);margin:.25rem 0 0}
@@ -502,16 +510,40 @@ def _tabela_pary(df, h, znaczniki=None):
             f'</tr></thead><tbody>{"".join(w)}</tbody></table>' + _legenda(df))
 
 
+def _najdluzsza(p, uklad):
+    """Najdłuższa obecna seria ze smaczków pary w danym układzie ("u" – mecze u gospodarza, "h2h" – wszystkie)."""
+    ff = [f for f in p.fakty if f.typ and f.regula and f.regula.split(":")[0] == uklad]
+    return max(ff, key=lambda f: (f.n, f.waga)) if ff else None
+
+
+def _teraz(df_od_najnowszego, f):
+    """Znaczniki „teraz” dla meczów obecnej serii f (ostatnie f.n meczów)."""
+    return {i: "teraz" for i in df_od_najnowszego.index[:f.n]} if f is not None else {}
+
+
+def _legenda_serii(f, gdzie=""):
+    if f is None:
+        return ""
+    return (f'<p class="legenda"><span class="lg teraz">obecna seria – {mecze(f.n)}</span>{e(gdzie)}'
+            f'{e(f.tekst)}</p>')
+
+
 def _wyniki_html(p):
-    """Rozwijany podgląd meczów pary, z których wynikają smaczki."""
+    """Rozwijany podgląd meczów pary, z których wynikają smaczki. Mecze najdłuższej obecnej serii są zaznaczone
+    na zielono: w tabeli meczów u gospodarza – seria „u gospodarza”, we wszystkich meczach pary – seria
+    „u siebie i na wyjeździe”."""
     if not p.wyniki:
         return ""
     u, rew = p.wyniki["u_gosp"], p.wyniki["rewanze"]
     zakres = _opis_zakresu(p)
+    s_u, s_h2h = _najdluzsza(p, "u"), _najdluzsza(p, "h2h")
     czesci = []
     if len(u):
         tytul = f"Pokaż wyniki: {mecze(len(u))} u {p.h}"
-        czesci.append(_bilans(u, p.h, p.v, zakres) + _tabela_u_gospodarza(u))
+        czesci.append(_bilans(u, p.h, p.v, zakres) + _legenda_serii(s_u, " ") + _tabela_u_gospodarza(u, _teraz(u, s_u)))
+        if s_h2h is not None and s_u is None and len(rew):
+            czesci.append('<p class="legenda">Seria ze smaczka obejmuje mecze u siebie i na wyjeździe – jest zaznaczona '
+                          'w tabeli „Wszystkie mecze pary” niżej.</p>')
     else:
         tytul = "Pokaż wyniki"
         czesci.append(f'<p class="podsum">{e(_ostatni_txt(Pozycja(None, "", p.h, p.v, [], zakres=p.zakres)))}.</p>'
@@ -523,16 +555,20 @@ def _wyniki_html(p):
         razem = pd.concat([u, rew]).sort_values("Date", ascending=False, kind="stable")
         z = [("W" if (r.hgoal > r.vgoal) == (r.home == p.h) and r.hgoal != r.vgoal else
               ("R" if r.hgoal == r.vgoal else "P")) for r in razem.itertuples()]
-        czesci.append(f"<details><summary>Wszystkie mecze pary: {mecze(len(razem))}, u siebie i na wyjeździe</summary>"
+        otwarta = " open" if s_h2h is not None and s_u is None else ""
+        czesci.append(f"<details{otwarta}><summary>Wszystkie mecze pary: {mecze(len(razem))}, u siebie i na wyjeździe"
+                      f"</summary>"
                       f'<p class="podsum">{e(p.h)} – wygrane: {z.count("W")} · remisy: {z.count("R")} · '
                       f'porażki: {z.count("P")} (W/R/P z perspektywy {e(p.h)}'
-                      f'{"; " + e(zakres) if zakres else ""})</p>{_tabela_pary(razem, p.h)}</details>')
+                      f'{"; " + e(zakres) if zakres else ""})</p>{_legenda_serii(s_h2h, " ")}'
+                      f'{_tabela_pary(razem, p.h, _teraz(razem, s_h2h))}</details>')
     return f'<details class="wyniki"><summary>{e(tytul)}</summary>{"".join(czesci)}</details>'
 
 
-def seria_html(p, t):
+def seria_html(p, t, z_opisem=True):
     """Mecze pary, z których wynika typ t (TypWspolny z regułą serii): obecna seria na zielono,
-    wcześniejsze przerwane serie tego samego rodzaju na niebiesko; od najnowszego meczu."""
+    wcześniejsze przerwane serie tego samego rodzaju na niebiesko; od najnowszego meczu.
+    z_opisem=False – bez powtórzenia tekstu smaczka (gdy jest już nad tabelą)."""
     if not p.wyniki or not t.regula:
         return ""
     uklad, rodzaj = t.regula.split(":")
@@ -557,16 +593,30 @@ def seria_html(p, t):
         legenda += f'<div class="opis">Wcześniej nie było takiej serii (od {mecze(min_dlugosc(rodzaj))}).</div>'
     nowe = df.iloc[::-1]
     tabela = _tabela_u_gospodarza(nowe, znaczniki) if uklad == "u" else _tabela_pary(nowe, p.h, znaczniki)
-    opis = f'<div class="opis">{e(t.fakt.tekst) + " " if t.fakt else ""}Pokazane: {e(gdzie)}.</div>'
+    opis = f'<div class="opis">{e(t.fakt.tekst) + " " if t.fakt and z_opisem else ""}Pokazane: {e(gdzie)}.</div>'
     return opis + legenda + tabela
+
+
+def _typ_faktu(f):
+    """Seria jednego smaczka jako TypWspolny (do tabeli serii)."""
+    return TypWspolny(rynek_typu(f.typ), f.typ, [f.typ], f.waga, f.n, regula=f.regula, fakt=f)
+
+
+def _fakt_html(p, f):
+    """Smaczek; jeśli to seria – po kliknięciu tabela jej meczów (obecna seria zielona, wcześniejsze niebieskie)."""
+    klasa = "mocny" if f.waga >= C.PROG_DNIA else ""
+    tag = f' <span class="tag">{e(_krotko(f.typ))}</span>' if f.typ else ""
+    tabela = seria_html(p, _typ_faktu(f), z_opisem=False) if f.typ and f.regula else ""
+    if not tabela:
+        return f'<li class="{klasa}">{e(f.tekst)}{tag}</li>'
+    return (f'<li class="{klasa}"><details class="seria fakt"><summary>{e(f.tekst)}{tag} '
+            f'<span class="pokaz">mecze serii</span></summary><div class="wfakt">{tabela}</div></details></li>')
 
 
 def _karta(p, skut=None):
     gw = '<span class="badge">★ długa historia</span>' if p.dluga_historia else ""
     godz = f"{p.data:%H:%M}" if p.data and (p.data.hour, p.data.minute) != (0, 0) else ""
-    fakty = "".join(f'<li class="{"mocny" if f.waga >= C.PROG_DNIA else ""}">{e(f.tekst)}'
-                    + (f' <span class="tag">{e(_krotko(f.typ))}</span>' if f.typ else "") + "</li>"
-                    for f in p.fakty[:C.MAKS_FAKTOW])
+    fakty = "".join(_fakt_html(p, f) for f in p.fakty[:C.MAKS_FAKTOW])
     typy = "".join(f"<div>{e(typ_tekst(t, p, skut))}</div>" for t in p.wspolne)
     ost = ostateczny_tekst(p, skut)
     if ost:
