@@ -182,39 +182,54 @@ def ostrzezenia(info):
     return out
 
 
+def _mecz_txt(p, info):
+    gw = "  ★" if p.dluga_historia else ""
+    nag = " ".join(x for x in [f"[{p.liga}]" if p.liga else "", termin(p.data)] if x)
+    linie = [f"{nag}  {p.h} – {p.v}{gw}" if nag else f"{p.h} – {p.v}{gw}", f"   ({_ostatni_txt(p)})"]
+    for f in p.fakty[:C.MAKS_FAKTOW]:
+        linie.append(f"   • {f.tekst}" + (f"  [{_krotko(f.typ)}]" if f.typ else ""))
+    for t in p.wspolne:
+        linie.append(f"   ⇒ Typ meczu – {typ_tekst(t, p, info.get('skutecznosc'))}")
+    ost = ostateczny_tekst(p, info.get("skutecznosc"))
+    if ost:
+        linie.append(f"   ★ {ost}")
+    return linie + [""]
+
+
+def _predykcja_txt(pr, skut, tytul):
+    nag, typ, why, hist = predykcja_tekst(pr, skut)
+    return (["=" * 60, f"{tytul}: {nag}", f"   {typ}", f"   {why}"] + ([f"   {hist}"] if hist else [])
+            + ["=" * 60, ""])
+
+
 def raport_txt(pozycje, info, tytul, wszystkie=False, po_dniach=False):
+    """Raport tekstowy. po_dniach: mecze dzień po dniu i ostateczna predykcja każdego dnia;
+    inaczej: wszystkie mecze od najciekawszego i jedna ostateczna predykcja na końcu."""
+    skut = info.get("skutecznosc")
     linie = [f"{tytul}  (historia ligowa do {fmt(info['koniec'])}; {info['zrodlo']})"]
     if info.get("uzupelnione"):
         linie.append(f"Sezon {_sezony(info['uzupelnione'])} – brak w archiwum, uzupełniony z {info['zrodlo_biezace']}.")
     linie += ostrzezenia(info)
     linie.append("")
     if po_dniach:
-        kolejnosc = sorted(pozycje, key=lambda p: (p.dzien or dt.date.max, -p.waga))
+        for dzien in sorted({p.dzien for p in pozycje}, key=lambda d: d or dt.date.max):
+            dnia = sorted([p for p in pozycje if p.dzien == dzien], key=lambda p: -p.waga)
+            linie += [f"--- {DNI[dzien.weekday()]} {dzien:%d.%m.%Y} ---" if dzien else "--- bez daty ---", ""]
+            for p in dnia:
+                if p.fakty or wszystkie:
+                    linie += _mecz_txt(p, info)
+            pr = predykcja(dnia)
+            if pr:
+                linie += _predykcja_txt(pr, skut, "OSTATECZNA PREDYKCJA DNIA")
     else:
-        kolejnosc = sorted(pozycje, key=lambda p: -p.waga)
-    for p in kolejnosc:
-        if not p.fakty and not wszystkie:
-            continue
-        gw = "  ★" if p.dluga_historia else ""
-        nag = " ".join(x for x in [f"[{p.liga}]" if p.liga else "", termin(p.data)] if x)
-        linie.append(f"{nag}  {p.h} – {p.v}{gw}" if nag else f"{p.h} – {p.v}{gw}")
-        linie.append(f"   ({_ostatni_txt(p)})")
-        for f in p.fakty[:C.MAKS_FAKTOW]:
-            linie.append(f"   • {f.tekst}" + (f"  [{_krotko(f.typ)}]" if f.typ else ""))
-        for t in p.wspolne:
-            linie.append(f"   ⇒ Typ meczu – {typ_tekst(t, p, info.get('skutecznosc'))}")
-        ost = ostateczny_tekst(p, info.get("skutecznosc"))
-        if ost:
-            linie.append(f"   ★ {ost}")
-        linie.append("")
+        for p in sorted(pozycje, key=lambda p: -p.waga):
+            if p.fakty or wszystkie:
+                linie += _mecz_txt(p, info)
+        pr = predykcja(pozycje)
+        if pr:
+            linie += _predykcja_txt(pr, skut, "OSTATECZNA PREDYKCJA")
     if not pozycje:
-        linie.append("Brak meczów 4 lig angielskich w tym okresie.")
-        linie.append("")
-    pr = predykcja(pozycje)
-    if pr:
-        nag, typ, why, hist = predykcja_tekst(pr, info.get("skutecznosc"))
-        linie += ["=" * 60, f"OSTATECZNA PREDYKCJA: {nag}", f"   {typ}", f"   {why}"] + ([f"   {hist}"] if hist else [])
-        linie += ["=" * 60, ""]
+        linie += ["Brak meczów 4 lig angielskich w tym okresie.", ""]
     linie.append(_podsumowanie(pozycje))
     return "\n".join(linie)
 
@@ -253,6 +268,28 @@ padding:0 .35rem;white-space:nowrap}
 .typy b{display:block;font-size:.78rem;color:var(--muted);margin-bottom:.15rem}
 .typy div{margin:.15rem 0}
 .typy .ost{margin-top:.45rem;padding-top:.4rem;border-top:1px solid var(--line);font-weight:650;color:var(--ink)}
+.kal{display:flex;gap:.4rem;overflow-x:auto;padding:.2rem 0 .5rem;margin:.6rem 0 .2rem;-webkit-overflow-scrolling:touch}
+.kal button{flex:0 0 auto;min-width:3.6rem;display:flex;flex-direction:column;align-items:center;gap:.05rem;
+border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:.4rem .5rem;
+font:inherit;cursor:pointer}
+.kal button .dn{font-size:.72rem;color:var(--muted);text-transform:uppercase}
+.kal button .dd{font-weight:700;font-size:1rem}
+.kal button .ile{font-size:.7rem;color:var(--star);white-space:nowrap}
+.kal button.akt{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.liga{background:var(--card);border:1px solid var(--line);border-radius:14px;margin:.55rem 0;padding:0 .8rem}
+.liga>summary{display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:.75rem 0;
+margin:0;color:var(--ink);font-size:1rem;font-weight:650;list-style:none}
+.liga>summary::-webkit-details-marker{display:none}
+.liga>summary::after{content:"▾";color:var(--muted);margin-left:.3rem}
+.liga[open]>summary::after{content:"▴"}
+.liga>summary span:first-child{white-space:nowrap}
+.liga>summary .lic{margin-left:auto;font-size:.72rem;font-weight:500;color:var(--muted);white-space:nowrap}
+.liga .card .chip{display:none}
+.liga[open]{padding-bottom:.6rem}
+.liga .card{margin:.5rem 0}
+.liga.pusta{display:flex;justify-content:space-between;padding:.75rem .8rem;color:var(--muted)}
+.liga.pusta .lic{font-size:.75rem}
+section.dzien[hidden]{display:none}
 .predykcja{border:2px solid var(--accent);border-radius:14px;padding:.8rem .9rem;margin:1.6rem 0 .6rem;
 background:var(--card)}
 .predykcja b{display:block;color:var(--accent);font-size:.8rem;text-transform:uppercase;letter-spacing:.04em}
@@ -429,29 +466,62 @@ def _dane_html(info):
             + "".join(f"<li>{x}</li>" for x in li) + "</ul></details>")
 
 
+LIGI_KOLEJNOSC = [nazwa for nazwa, _, _ in C.LIGI.values()]
+
+
+def _predykcja_html(pr, skut, tytul="Ostateczna predykcja dnia"):
+    nag, typ, why, hist = predykcja_tekst(pr, skut)
+    return (f'<div class="predykcja"><b>{e(tytul)}</b><div class="pm">{e(nag)}</div>'
+            f'<div class="pt">{e(typ)}</div><div class="pw">{e(why)}</div>'
+            + (f'<div class="pw">{e(hist)}</div>' if hist else "") + "</div>")
+
+
+def _liga_html(nazwa, mecze_ligi, skut):
+    """Rozwijana zakładka ligi: najpierw mecze ze smaczkami (od najciekawszego), potem pozostałe."""
+    if not mecze_ligi:
+        return f'<div class="liga pusta"><span>{e(nazwa)}</span><span class="lic">brak meczów</span></div>'
+    ze = sorted([p for p in mecze_ligi if p.fakty], key=lambda p: -p.waga)
+    bez = sorted([p for p in mecze_ligi if not p.fakty], key=lambda p: p.data or dt.datetime.max)
+    gw = sum(1 for p in mecze_ligi if p.dluga_historia)
+    licznik = f"{mecze(len(mecze_ligi))} · smaczki: {len(ze)}" + (f" · ★{gw}" if gw else "")
+    tresc = "".join(_karta(p, skut) for p in ze) or '<p class="empty">Brak smaczków w meczach tej ligi.</p>'
+    if bez:
+        tresc += "<h3>Pozostałe mecze</h3>" + "".join(_karta(p, skut) for p in bez)
+    return (f'<details class="liga"><summary><span>{e(nazwa)}</span><span class="lic">{e(licznik)}</span>'
+            f"</summary>{tresc}</details>")
+
+
 def raport_html(pozycje, info, dzis, od, do):
+    """Strona: kalendarz dni u góry, po wybraniu dnia rozwijane zakładki 4 lig i ostateczna predykcja dnia."""
+    skut = info.get("skutecznosc")
     dni = sorted({p.dzien for p in pozycje if p.dzien})
-    sekcje = []
+    przyciski, panele = [], []
     for dzien in dni:
-        dnia = sorted([p for p in pozycje if p.dzien == dzien], key=lambda p: -p.waga)
-        ze = [p for p in dnia if p.fakty]
-        bez = sorted([p for p in dnia if not p.fakty], key=lambda p: p.data or dt.datetime.max)
-        czesci = [f"<h2>{e(naglowek_dnia(dzien, dzis))}</h2>"]
-        czesci += [_karta(p, info.get("skutecznosc")) for p in ze] or ['<p class="empty">Brak smaczków w meczach tego dnia.</p>']
-        if bez:
-            czesci.append("<h3>Pozostałe mecze (bez smaczków)</h3>" + "".join(_karta(p, info.get("skutecznosc")) for p in bez))
-        sekcje.append("".join(czesci))
+        dnia = [p for p in pozycje if p.dzien == dzien]
+        gw = sum(1 for p in dnia if p.dluga_historia)
+        iso = dzien.isoformat()
+        przyciski.append(
+            f'<button type="button" data-d="{iso}"><span class="dn">'
+            f'{"dziś" if dzien == dzis else DNI_KROTKO[dzien.weekday()]}</span>'
+            f'<span class="dd">{dzien.day}.{dzien.month:02d}</span>'
+            f'<span class="ile">{"★ " + str(gw) if gw else str(len(dnia)) + " m."}</span></button>')
+        ligi = [(n, [p for p in dnia if p.liga == n]) for n in LIGI_KOLEJNOSC]
+        inne = [p for p in dnia if p.liga not in LIGI_KOLEJNOSC]
+        if inne:
+            ligi.append(("Inne mecze", inne))
+        pr = predykcja(dnia)
+        panele.append(f'<section class="dzien" data-d="{iso}"><h2>{e(naglowek_dnia(dzien, dzis))}</h2>'
+                      + "".join(_liga_html(n, m, skut) for n, m in ligi)
+                      + (_predykcja_html(pr, skut) if pr else
+                         '<p class="empty">Brak serii – brak ostatecznej predykcji tego dnia.</p>')
+                      + "</section>")
     bez_daty = [p for p in pozycje if not p.dzien]
     if bez_daty:
-        sekcje.append("<h2>Mecze bez daty</h2>" + "".join(_karta(p, info.get("skutecznosc")) for p in sorted(bez_daty, key=lambda p: -p.waga)))
+        panele.append('<section class="bezdaty"><h2>Mecze bez daty</h2>'
+                      + "".join(_karta(p, skut) for p in sorted(bez_daty, key=lambda p: -p.waga)) + "</section>")
     if not pozycje:
-        sekcje.append(f'<p class="empty">Brak meczów 4 lig angielskich {od:%d.%m} – {do:%d.%m.%Y}.</p>')
-    pr = predykcja(pozycje)
-    if pr:
-        nag, typ, why, hist = predykcja_tekst(pr, info.get("skutecznosc"))
-        sekcje.append(f'<div class="predykcja"><b>Ostateczna predykcja</b><div class="pm">{e(nag)}</div>'
-                      f'<div class="pt">{e(typ)}</div><div class="pw">{e(why)}</div>'
-                      + (f'<div class="pw">{e(hist)}</div>' if hist else "") + "</div>")
+        panele.append(f'<p class="empty">Brak meczów 4 lig angielskich {od:%d.%m} – {do:%d.%m.%Y}.</p>')
+    kalendarz = f'<nav class="kal">{"".join(przyciski)}</nav>' if przyciski else ""
     ostrz = "".join(f'<div class="warn">{e(o)}</div>' for o in ostrzezenia(info))
     teraz = dt.datetime.now().strftime("%d.%m.%Y %H:%M")
     return f"""<!doctype html>
@@ -463,15 +533,32 @@ def raport_html(pozycje, info, dzis, od, do):
 <body><main>
 <h1>Smaczki meczowe</h1>
 <p class="sub">Premier League · Championship · League One · League Two<br>
-{od:%d.%m} – {do:%d.%m.%Y} · historia ligowa od 1888 do {fmt(info['koniec'])}</p>
+historia ligowa od 1888 do {fmt(info['koniec'])} · terminarz na kolejne dni pojawia się kilka dni wcześniej</p>
 {ostrz}
-{"".join(sekcje)}
+{kalendarz}
+{"".join(panele)}
 <footer>{e(_podsumowanie(pozycje))}<br>★ = smaczek z długą historią (waga ≥ {C.PROG_DNIA}).
 Tylko mecze ligowe; „u drużyny X” = mecze, w których X był gospodarzem.
 W tabelach 1X2: 1 = wygrana gospodarza, X = remis, 2 = wygrana gości (wyróżniona).
 {_dane_html(info)}
 Wygenerowano {teraz}.</footer>
-</main></body></html>
+</main>
+<script>
+(function () {{
+  var przyciski = document.querySelectorAll(".kal button");
+  var panele = document.querySelectorAll("section.dzien");
+  if (!przyciski.length) return;
+  function pokaz(d) {{
+    panele.forEach(function (s) {{ s.hidden = s.getAttribute("data-d") !== d; }});
+    przyciski.forEach(function (b) {{ b.classList.toggle("akt", b.getAttribute("data-d") === d); }});
+    try {{ history.replaceState(null, "", "#" + d); }} catch (e) {{}}
+  }}
+  przyciski.forEach(function (b) {{ b.addEventListener("click", function () {{ pokaz(b.getAttribute("data-d")); }}); }});
+  var h = location.hash.slice(1), dni = Array.prototype.map.call(przyciski, function (b) {{ return b.getAttribute("data-d"); }});
+  pokaz(dni.indexOf(h) >= 0 ? h : dni[0]);
+}})();
+</script>
+</body></html>
 """
 
 
