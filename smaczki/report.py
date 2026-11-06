@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from . import config as C
-from .rules import fmt, mecze, odmiana, typ_ostateczny, typy_wspolne
+from .rules import fmt, mecze, odmiana, rynek_typu, typ_ostateczny, typy_wspolne
 
 DNI = ["poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota", "niedziela"]
 DNI_KROTKO = ["pn", "wt", "śr", "czw", "pt", "sob", "nd"]
@@ -167,6 +167,37 @@ def ostateczny_tekst(p, skut):
     return " · ".join(czesci)
 
 
+def predykcja(pozycje, dzien=None):
+    """Jedna ostateczna predykcja: mecz z najmocniejszym ostatecznym typem (opcjonalnie tylko z danego dnia).
+    Zwraca (Pozycja, TypWspolny, Fakt – najmocniejsza seria za tym typem) albo None."""
+    kandydaci = []
+    for p in pozycje:
+        if dzien is not None and p.dzien != dzien:
+            continue
+        t = p.ostateczny
+        if t is None:
+            continue
+        seria = max((f for f in p.fakty if f.typ and rynek_typu(f.typ) == t.rynek), key=lambda f: f.waga)
+        kandydaci.append((t.sila, kurs_typu(p.kursy, t.typ) is not None, p, t, seria))
+    if not kandydaci:
+        return None
+    _, _, p, t, seria = max(kandydaci, key=lambda x: (x[0], x[1]))
+    return p, t, seria
+
+
+def predykcja_tekst(pr, skut):
+    """(nagłówek meczu, typ z kursem i historią, uzasadnienie)."""
+    p, t, seria = pr
+    nag = " ".join(x for x in [f"[{p.liga}]" if p.liga else "", termin(p.data), f"{p.h} – {p.v}"] if x)
+    typ = ostateczny_tekst(p, skut).replace("OSTATECZNY TYP: ", "")
+    st = (skut or {}).get("typ_dnia")
+    hist = ""
+    if st and st.get("zwrot") is not None:
+        hist = (f"Taka predykcja (najmocniejszy typ dnia) w przeszłości: {st['trafione'] * 100:.0f}% trafień, "
+                f"zwrot {_procent(st['zwrot'])} ({_tys(st['typow'])} dni od {skut['okres'][:7]}).")
+    return nag, typ, f"Najmocniejsza seria: {seria.tekst}", hist
+
+
 def ostrzezenia(info):
     """Linie ostrzeżeń do nagłówka raportu."""
     out = []
@@ -210,6 +241,11 @@ def raport_txt(pozycje, info, tytul, wszystkie=False, po_dniach=False):
     if not pozycje:
         linie.append("Brak meczów 4 lig angielskich w tym okresie.")
         linie.append("")
+    pr = predykcja(pozycje)
+    if pr:
+        nag, typ, why, hist = predykcja_tekst(pr, info.get("skutecznosc"))
+        linie += ["=" * 60, f"OSTATECZNA PREDYKCJA: {nag}", f"   {typ}", f"   {why}"] + ([f"   {hist}"] if hist else [])
+        linie += ["=" * 60, ""]
     linie.append(_podsumowanie(pozycje))
     return "\n".join(linie)
 
@@ -249,6 +285,12 @@ padding:0 .35rem;white-space:nowrap}
 .typy div{margin:.15rem 0}
 .typy .ost{margin-top:.45rem;padding-top:.4rem;border-top:1px solid var(--line);font-weight:650;color:var(--ink)}
 .gole{font-size:.78rem;color:var(--muted);margin:.45rem 0 0}
+.predykcja{border:2px solid var(--accent);border-radius:14px;padding:.8rem .9rem;margin:1.6rem 0 .6rem;
+background:var(--card)}
+.predykcja b{display:block;color:var(--accent);font-size:.8rem;text-transform:uppercase;letter-spacing:.04em}
+.predykcja .pm{font-weight:650;margin:.3rem 0 .15rem}
+.predykcja .pt{font-weight:650;font-size:1.05rem}
+.predykcja .pw{font-size:.8rem;color:var(--muted);margin-top:.3rem}
 .gole div{margin:.1rem 0}
 details>summary{cursor:pointer;color:var(--accent);font-size:.88rem;font-weight:600;margin-top:.5rem;
 list-style-position:outside;padding:.15rem 0}
@@ -439,6 +481,12 @@ def raport_html(pozycje, info, dzis, od, do):
         sekcje.append("<h2>Mecze bez daty</h2>" + "".join(_karta(p, info.get("skutecznosc")) for p in sorted(bez_daty, key=lambda p: -p.waga)))
     if not pozycje:
         sekcje.append(f'<p class="empty">Brak meczów 4 lig angielskich {od:%d.%m} – {do:%d.%m.%Y}.</p>')
+    pr = predykcja(pozycje)
+    if pr:
+        nag, typ, why, hist = predykcja_tekst(pr, info.get("skutecznosc"))
+        sekcje.append(f'<div class="predykcja"><b>Ostateczna predykcja</b><div class="pm">{e(nag)}</div>'
+                      f'<div class="pt">{e(typ)}</div><div class="pw">{e(why)}</div>'
+                      + (f'<div class="pw">{e(hist)}</div>' if hist else "") + "</div>")
     ostrz = "".join(f'<div class="warn">{e(o)}</div>' for o in ostrzezenia(info))
     teraz = dt.datetime.now().strftime("%d.%m.%Y %H:%M")
     return f"""<!doctype html>
@@ -480,4 +528,9 @@ def powiadomienie(pozycje, dzien):
             k = kurs_typu(p.kursy, t.typ)
             typ = f" → typ: {_krotko(t.typ)}" + (f" ({k:.2f})" if k else "")
         linie.append(f"{godz}{p.h} – {p.v}: {f.tekst}{typ}")
+    pr = predykcja(pozycje, dzien)
+    if pr:
+        p, t, _ = pr
+        k = kurs_typu(p.kursy, t.typ)
+        linie.append(f"Ostateczna predykcja dnia: {p.h} – {p.v}: {_krotko(t.typ)}" + (f" ({k:.2f})" if k else ""))
     return tytul, "\n".join(linie)

@@ -159,6 +159,10 @@ Pod smaczkami jest **jeden typ meczu na każdy rynek**:
 Na końcu jest **jeden ostateczny typ** na mecz: typ z tego rynku (1X2, gole albo obie strzelą), za którym stoi
 najmocniejsza seria. Dokładny wynik jest ostatecznym typem tylko wtedy, gdy nie ma innych serii.
 
+Na samym końcu strony (i raportu) jest **jedna ostateczna predykcja**: mecz z najmocniejszym ostatecznym typem
+spośród wszystkich meczów na stronie, z serią, na której się opiera. Powiadomienie na telefon podaje
+ostateczną predykcję z meczów danego dnia.
+
 Obok jest **aktualny kurs** (średnia rynkowa z football-data.co.uk; podwójna szansa wyliczona z kursów 1X2)
 i **jak taki typ meczu wypadał w przeszłości**. Kursów na „obie strzelą” i dokładny wynik w danych nie ma,
 więc tam jest tylko skuteczność w porównaniu z przeciętną.
@@ -207,6 +211,7 @@ Ostateczny typ (jeden na mecz):
 | dokładny wynik | 90 | 7.8% | 9.3% | – | brak kursów |
 | **razem, z kursem** | 16 797 | 60.0% | 56.0% | 1.72 | −6.2% |
 | **razem, z kursem, mecze z ★** | 5 079 | 59.1% | 52.6% | 1.79 | −7.2% |
+| **ostateczna predykcja dnia** (najmocniejszy typ dnia; liczba = dni) | 2 698 | 60.9% | 53.2% | 1.71 | −6.5% |
 
 Serie wykluczały się w 0 meczach (1X2) i w 0 meczach (gole).
 

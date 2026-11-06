@@ -552,6 +552,13 @@
    "zwrot": null
   }
  },
+ "typ_dnia": {
+  "typow": 2698,
+  "trafione": 0.609,
+  "przecietnie": 0.5316,
+  "kurs": 1.71,
+  "zwrot": -0.0652
+ },
  "bazowe": {
   "1": {
    "typow": 43063,

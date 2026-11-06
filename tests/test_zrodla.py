@@ -355,6 +355,23 @@ class TestTypy(unittest.TestCase):
         self.assertEqual(gole_teksty(p), ["Gole – u A z B (ostatnie 5): powyżej 2.5 bramki – 2, poniżej 2.5 – 3, "
                                           "średnio 2.2 gola; teraz 3 mecze z rzędu poniżej 2.5."])
 
+    def test_predykcja_na_koniec(self):
+        from smaczki.report import predykcja, predykcja_tekst
+        d1, d2 = dt.datetime(2026, 11, 6, 21), dt.datetime(2026, 11, 7, 16)
+        a = Pozycja(d1, "Championship", "Derby County", "Bolton", [Fakt(32, "Bolton nie wygrał u Derby", typ="1X")],
+                    kursy={"1": 2.6, "X": 3.5, "2": 2.5})
+        b = Pozycja(d2, "Championship", "WBA", "Millwall", [Fakt(37, "6 remisów", typ="X"),
+                                                             Fakt(40, "under 11", typ="U2.5")])
+        c = Pozycja(d2, "Premier League", "Everton", "Coventry", [Fakt(0, "Pierwszy mecz w historii")])
+        p, t, seria = predykcja([a, b, c])
+        self.assertEqual((p.h, t.typ, seria.tekst), ("WBA", "U2.5", "under 11"))
+        self.assertEqual(predykcja([a, b, c], d1.date())[0].h, "Derby County")  # tylko mecze z danego dnia
+        self.assertIsNone(predykcja([c]))
+        nag, typ, why, hist = predykcja_tekst(predykcja([a]), None)
+        self.assertEqual(nag, "[Championship] pt 06.11.2026 21:00 Derby County – Bolton")
+        self.assertTrue(typ.startswith("1X (gospodarz nie przegra) · kurs ok."))
+        self.assertEqual(why, "Najmocniejsza seria: Bolton nie wygrał u Derby")
+
     def test_kazda_seria_ma_typ(self):
         from smaczki.rules import TYP_ZAKLADU, TYPY, TYPY_BRAMEK
         self.assertEqual(set(TYP_ZAKLADU), set(TYPY) | set(TYPY_BRAMEK))

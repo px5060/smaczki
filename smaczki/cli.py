@@ -262,6 +262,7 @@ def cmd_skutecznosc(a):
         wiersz(k, st)
     wiersz("z kursem", wynik["ostateczny_z_kursem"])
     wiersz("z kursem, ★", wynik["ostateczny_gwiazdka"])
+    wiersz("typ dnia", wynik["typ_dnia"])
     print(f"Zapisano {skutecznosc.PLIK}")
 
 

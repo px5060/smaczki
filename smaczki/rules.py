@@ -69,6 +69,16 @@ def typ_ostateczny(fakty):
     return max(glowne, key=lambda t: (t.sila, -kolejnosc[t.rynek]))
 
 
+def rynek_typu(typ):
+    if typ in TYPY_1X2:
+        return "1X2"
+    if typ in ("O2.5", "U2.5"):
+        return "gole"
+    if typ in ("BTTS", "noBTTS"):
+        return "BTTS"
+    return "wynik"
+
+
 def gole_pary(df, ostatnie=10):
     """Gole w meczach df (chronologicznie): ostatnie N meczów – ile powyżej i poniżej 2.5 bramki, średnia
     i bieżąca seria powyżej/poniżej 2.5. None, gdy brak meczów."""

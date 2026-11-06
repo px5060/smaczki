@@ -128,7 +128,8 @@ def policz(archiwum, cache_dir, od_sezonu=2005, dzis=None, postep=True):
         if ost is not None:
             kurs = kurs_typu(k, ost.typ)
             traf = trafiony(r.hgoal, r.vgoal, ost.typ)
-            ostateczne.append({"klucz": ost.klucz, "rynek": ost.rynek, "gwiazdka": gwiazdka, "traf": traf,
+            ostateczne.append({"data": r.Date, "sila": ost.sila, "z_kursem": kurs is not None,
+                               "klucz": ost.klucz, "rynek": ost.rynek, "gwiazdka": gwiazdka, "traf": traf,
                                "przec": przecietnie(st, r.Season, ost.typ), "kurs": kurs,
                                "zysk": None if kurs is None else ((kurs - 1) if traf else -1.0)})
         for t in typy_wspolne(fakty):
@@ -183,6 +184,9 @@ def policz(archiwum, cache_dir, od_sezonu=2005, dzis=None, postep=True):
         "ostateczny_z_kursem": _statystyka(o[o.kurs.notna()]),
         "ostateczny_gwiazdka": _statystyka(o[o.gwiazdka & o.kurs.notna()]),
         "ostateczny_rynki": {k: _statystyka(g) for k, g in o.groupby("rynek")},
+        # jedna predykcja na dzień: mecz z najmocniejszym ostatecznym typem (przy remisie – z kursem)
+        "typ_dnia": _statystyka(o.sort_values(["data", "sila", "z_kursem"]).groupby("data").tail(1)
+                                .pipe(lambda d: d[d.kurs.notna()])),
         "bazowe": bazowe,
     }
     return wynik, r
