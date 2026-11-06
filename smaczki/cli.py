@@ -9,8 +9,9 @@ import urllib.request
 import pandas as pd
 
 from . import config as C
+from . import skutecznosc
 from .data_loader import BladDanych, Mecz, pobierz_archiwum, zbierz
-from .report import Pozycja, powiadomienie, raport_html, raport_txt
+from .report import Pozycja, powiadomienie, raport_html, raport_txt, typ_tekst
 from .rules import fmt, karta_meczu, ostatni_u_gospodarza, ranking, smaczki, wyniki_pary
 
 if hasattr(sys.stdout, "reconfigure"):  # polskie znaki w konsoli Windows
@@ -49,7 +50,7 @@ def _info(dane, wlasny_plik=None):
     return {"koniec": h.Date.max(), "pierwszy": h.Date.min(), "liczba": len(h), "zrodla": zrodla,
             "zrodlo": dane.zrodlo, "ostrzezenia": dane.ostrzezenia, "tylko_archiwum": dane.tylko_archiwum,
             "niedopasowane": dane.nazwy.niedopasowane, "uzupelnione": dane.uzupelnione, "pobrano": dane.pobrano,
-            "zrodlo_biezace": dane.biezace,
+            "zrodlo_biezace": dane.biezace, "skutecznosc": skutecznosc.wczytaj(),
             "zrodlo_terminarza": f"własny plik {wlasny_plik}" if wlasny_plik else TERMINARZ.get(dane.biezace, "")}
 
 
@@ -65,7 +66,7 @@ def _pozycje(dane, terminarz, dzis):
         hist = przed[dzien]
         ref = pd.Timestamp(dzien) if dzien else pd.Timestamp(dzis)
         out.append(Pozycja(m.data, m.liga, h, v, smaczki(hist, h, v, ref), ostatni_u_gospodarza(hist, h, v),
-                           wyniki_pary(hist, h, v)))
+                           wyniki_pary(hist, h, v), m.kursy))
     return out
 
 
@@ -179,8 +180,12 @@ def cmd_mecz(a):
     fakty = smaczki(dane.hist, h, v, pd.Timestamp(dzis))
     if fakty:
         print("Smaczki:")
+        skut = skutecznosc.wczytaj()
         for f in fakty:
             print(f"  ★ {f.tekst}" if f.waga >= C.PROG_DNIA else f"  • {f.tekst}")
+            t = typ_tekst(f, Pozycja(None, "", h, v, fakty), skut)
+            if t:
+                print(f"      → {t}")
     print("Karta pary:")
     for linia in karta_meczu(dane.hist, h, v):
         print("  • " + linia)
@@ -220,6 +225,24 @@ def cmd_nazwy(a):
     for zrodlowa, archiwum in dane.nazwy.mapa().items():
         znak = "!!" if zrodlowa in dane.nazwy.niedopasowane else ("= " if zrodlowa == archiwum else "->")
         print(f"{znak} {zrodlowa:28} {archiwum if znak != '!!' else '(brak w archiwum – nowy klub?)'}")
+
+
+def cmd_skutecznosc(a):
+    """Przelicza skuteczność typów na historii z kursami i zapisuje smaczki/skutecznosc.json."""
+    print("Liczę skuteczność typów (kilka minut; pierwsze uruchomienie pobiera ok. 100 plików z kursami) …")
+    wynik, _ = skutecznosc.policz(a.archiwum or a.dane, os.path.join(a.dane, "cache"), od_sezonu=a.od_sezonu)
+    skutecznosc.zapisz(wynik)
+    def wiersz(nazwa, st):
+        print(f"  {nazwa:12} {st['typow']:6d} typów  trafione {st['trafione'] * 100:5.1f}%  "
+              f"śr. kurs {st['kurs']:5.2f}  zwrot {st['zwrot'] * 100:+6.1f}%")
+    print(f"Sezony {wynik['okres']}, {wynik['meczow']} meczów z kursami.\nNa ślepo (każdy mecz):")
+    for k, st in wynik["bazowe"].items():
+        wiersz(k, st)
+    print("Typy zgodne z seriami (u = mecze u gospodarza, h2h = wszystkie mecze pary):")
+    for k, st in sorted(wynik["reguly"].items()):
+        wiersz(k, st)
+    wiersz("główny typ", wynik["glowny_typ"])
+    print(f"Zapisano {skutecznosc.PLIK}")
 
 
 def cmd_pobierz(a):
@@ -266,6 +289,8 @@ def main(argv=None):
     p.add_argument("--tier", type=int, choices=[1, 2, 3, 4], help="tylko pary, których ostatni mecz był w tej lidze")
 
     sub.add_parser("nazwy", parents=[wspolne], help="kontrola dopasowania nazw drużyn")
+    p = sub.add_parser("skutecznosc", parents=[wspolne], help="przelicz skuteczność typów na historii z kursami")
+    p.add_argument("--od-sezonu", type=int, default=2005, help="pierwszy sezon testu (domyślnie 2005 = 2005/06)")
     p = sub.add_parser("pobierz", parents=[wspolne], help="pobierz archiwum engsoccerdata")
     p.add_argument("--wymus", action="store_true", help="pobierz ponownie, nawet jeśli plik już jest")
 
@@ -283,6 +308,8 @@ def main(argv=None):
             cmd_ranking(a)
         elif a.polecenie == "nazwy":
             cmd_nazwy(a)
+        elif a.polecenie == "skutecznosc":
+            cmd_skutecznosc(a)
         elif a.polecenie == "pobierz":
             cmd_pobierz(a)
     except BladDanych as e:

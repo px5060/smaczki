@@ -35,6 +35,7 @@ class Mecz:
     liga: str
     home: str                 # nazwa ze źródła (mapowana później przez Nazwy)
     away: str
+    kursy: tuple | None = None  # średnie kursy rynkowe (1, X, 2), jeśli źródło je podaje
 
 
 @dataclass
@@ -143,6 +144,21 @@ def _int(s):
         return None
 
 
+KOLUMNY_KURSOW = [("AvgH", "AvgD", "AvgA"), ("BbAvH", "BbAvD", "BbAvA")]  # średnie rynkowe (od 2019 / 2005–2019)
+
+
+def kursy_z_wiersza(w):
+    """Średnie kursy 1X2 z wiersza football-data.co.uk albo None."""
+    for kol in KOLUMNY_KURSOW:
+        try:
+            k = tuple(float(w.get(c, "")) for c in kol)
+        except ValueError:
+            continue
+        if all(x > 1.0 for x in k):
+            return k
+    return None
+
+
 def _fd_get(url):
     try:
         return _pobierz(url)
@@ -199,7 +215,7 @@ def fd_terminarz_z_tekstu(tekst, od, do):
         if ":" in godz:
             hh, mm = godz.split(":")[:2]
             d = d.replace(hour=int(hh), minute=int(mm)) + dt.timedelta(hours=C.FD_PRZESUNIECIE_GODZIN)
-        out.append(Mecz(d, C.LIGI[w["Div"]][0], w["HomeTeam"], w["AwayTeam"]))
+        out.append(Mecz(d, C.LIGI[w["Div"]][0], w["HomeTeam"], w["AwayTeam"], kursy_z_wiersza(w)))
     return out
 
 

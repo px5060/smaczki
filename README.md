@@ -96,6 +96,7 @@ Gdyby mimo to został wyłączony, GitHub przyśle e-mail: wystarczy kliknąć *
 | `python -m smaczki mecz "Derby" "Bolton"` | pełna karta pary: bilans u gospodarza, ostatnie wygrane, serie, średnia goli, 0:0, najwyższe zwycięstwa, bilans wszystkich meczów, forma (`--wyniki`: lista wszystkich meczów u gospodarza) |
 | `python -m smaczki ranking --top 25 [--tier 1]` | najdłuższe passy „gość nie wygrał u rywala od X lat” wśród par grających ze sobą w ostatnich 3 latach |
 | `python -m smaczki nazwy` | kontrola dopasowania nazw drużyn ze źródła do archiwum |
+| `python -m smaczki skutecznosc` | przelicza skuteczność typów na historii z kursami (od 2005/06) |
 
 Opcje wspólne: `--zrodlo auto|fd|api|brak`, `--dane FOLDER` (domyślnie `dane`), `--archiwum ŚCIEŻKA` (własna kopia
 `england.csv` albo folder `engsoccerdata/data-raw`), w trybach terminarza także `--wszystkie` (pokaż też mecze bez smaczków).
@@ -129,6 +130,52 @@ Town 19 razy z rzędu (od 1899 r.). Luton Town nie wygrał u Manchester United o
 **Kolejność** (nie jest nigdzie wyświetlana): im mniej prawdopodobna seria przy typowych wynikach z sezonów, w których
 grano te mecze, i im dłużej trwa, tym wyżej. Dzięki temu 16 meczów bez wygranej stoi wyżej niż 4, a seria remisów
 porównuje się uczciwie z serią wygranych. ★ = waga ≥ 25 (`PROG_DNIA`). Wszystkie progi są w `smaczki/config.py`.
+
+## Typy zakładów przy smaczkach
+
+Przy każdej serii aplikacja podaje **typ zgodny z serią**, czyli zakład na to, że seria potrwa. Gość nie wygrał u
+gospodarza → 1X, gospodarz nie wygrał u siebie → X2, wygrane gospodarza z rzędu → 1, remisy z rzędu → X, wygrane
+gościa z rzędu → 2, bez remisu → 12. Obok jest **aktualny kurs** (średnia rynkowa z football-data.co.uk; kurs
+podwójnej szansy wyliczony z kursów 1X2 jako 1 / (1/k₁ + 1/k₂)) i **jak taki typ wypadał w przeszłości**.
+
+Przy „pierwszym meczu od X lat” typu nie ma.
+
+**Jak liczona jest skuteczność.** Na 43 063 meczach z sezonów 2005/06–2026/27 serie były liczone tylko z meczów
+sprzed danego meczu (tak, jak w dniu meczu). Potem sprawdzane było, czy typ wszedł i ile dał przy ówczesnym średnim
+kursie (stawka 1 zł na typ).
+
+| Seria → typ | Typów | Trafione | Śr. kurs | Zwrot |
+|---|---|---|---|---|
+| gospodarz wygrał u siebie z rzędu → 1 | 1 810 | 51.5% | 2.00 | −7.3% |
+| remisy z rzędu u gospodarza → X | 202 | 23.3% | 3.45 | −20.1% |
+| gość wygrał u gospodarza z rzędu → 2 | 376 | 44.7% | 2.62 | −2.6% |
+| gość nie wygrał u gospodarza → 1X | 6 048 | 72.8% | 1.29 | −8.4% |
+| gospodarz nie wygrał u siebie → X2 | 1 921 | 62.4% | 1.56 | −7.2% |
+| bez remisu u gospodarza → 12 | 1 258 | 74.5% | 1.27 | −6.0% |
+| gospodarz wygrał z rywalem z rzędu (wszystkie mecze) → 1 | 983 | 58.7% | 1.86 | +0.1% |
+| remisy z rzędu (wszystkie mecze) → X | 204 | 26.0% | 3.43 | −12.4% |
+| gość wygrał z rywalem z rzędu (wszystkie mecze) → 2 | 1 160 | 42.1% | 2.61 | −4.2% |
+| gość nie wygrał z rywalem (wszystkie mecze) → 1X | 2 766 | 75.8% | 1.25 | −7.4% |
+| gospodarz nie wygrał z rywalem (wszystkie mecze) → X2 | 2 976 | 62.6% | 1.51 | −9.5% |
+| bez remisu (wszystkie mecze) → 12 | 1 631 | 73.9% | 1.27 | −6.0% |
+| **najmocniejszy typ przy każdym meczu** | 15 215 | 64.5% | 1.59 | −7.2% |
+
+| Na ślepo, każdy mecz | Trafione | Śr. kurs | Zwrot |
+|---|---|---|---|
+| 1 | 43.4% | 2.42 | −6.0% |
+| X | 26.5% | 3.53 | −8.5% |
+| 2 | 30.1% | 3.69 | −8.1% |
+| 1X | 69.9% | 1.38 | −6.9% |
+| X2 | 56.6% | 1.75 | −7.9% |
+| 12 | 73.5% | 1.28 | −6.0% |
+
+**Wniosek:** typy zgodne z serią trafiają częściej niż średnia, ale mają odpowiednio niższe kursy. W sumie tracą
+tyle samo, co obstawianie na ślepo (marża bukmachera, ok. 6–8%). Serie remisów nie trwają: po 4 i więcej remisach
+z rzędu kolejny remis padał rzadziej niż przeciętnie. Bukmacherzy znają te serie, więc **to nie są typy z przewagą
+nad kursem**; aplikacja pokazuje je razem z wynikami, żeby było to widać.
+
+Przeliczenie (np. po sezonie): `python -m smaczki skutecznosc` – pobiera ok. 100 plików z kursami (raz, potem cache)
+i zapisuje `smaczki/skutecznosc.json`.
 
 ## Nazwy drużyn
 

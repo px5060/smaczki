@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from . import config as C
-from .rules import fmt, mecze
+from .rules import fmt, mecze, odmiana
 
 DNI = ["poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota", "niedziela"]
 DNI_KROTKO = ["pn", "wt", "śr", "czw", "pt", "sob", "nd"]
@@ -23,6 +23,7 @@ class Pozycja:
     fakty: list
     ostatni: object = None  # ostatni mecz u gospodarza (wiersz historii) albo None
     wyniki: dict = None     # mecze do podglądu (rules.wyniki_pary)
+    kursy: tuple = None     # aktualne średnie kursy (1, X, 2), jeśli są
 
     @property
     def waga(self):
@@ -70,6 +71,35 @@ def _podsumowanie(pozycje):
     return f"Meczów w terminarzu: {len(pozycje)}, ze smaczkami: {ze}, z długą historią (★): {dlugie}."
 
 
+OPIS_TYPU = {"1": "wygra gospodarz", "X": "remis", "2": "wygra gość",
+             "1X": "gospodarz nie przegra", "X2": "gość nie przegra", "12": "nie będzie remisu"}
+
+
+def kurs_typu(kursy, typ):
+    """Kurs typu z kursów 1X2; podwójna szansa = 1 / (1/k_a + 1/k_b)."""
+    k = dict(zip("1X2", kursy))
+    return k[typ] if len(typ) == 1 else 1.0 / (1.0 / k[typ[0]] + 1.0 / k[typ[1]])
+
+
+def _procent(x):
+    return f"{x * 100:+.0f}%".replace("-", "−")
+
+
+def typ_tekst(f, p, skut):
+    """'Typ: 1X (gospodarz nie przegra) · kurs ok. 1.25 · w przeszłości 73% trafień, zwrot −8% (6048 typów)'."""
+    if not f.typ:
+        return ""
+    czesci = [f"Typ: {f.typ} ({OPIS_TYPU[f.typ]})"]
+    if p.kursy:
+        czesci.append(f"kurs ok. {kurs_typu(p.kursy, f.typ):.2f}")
+    st = ((skut or {}).get("reguly") or {}).get(f.regula)
+    if st:
+        typow = odmiana(st["typow"], "typ", "typy", "typów").replace(str(st["typow"]), _tys(st["typow"]), 1)
+        czesci.append(f"w przeszłości {st['trafione'] * 100:.0f}% trafień, zwrot {_procent(st['zwrot'])} "
+                      f"({typow} od {skut['okres'][:7]})")
+    return " · ".join(czesci)
+
+
 def ostrzezenia(info):
     """Linie ostrzeżeń do nagłówka raportu."""
     out = []
@@ -102,6 +132,9 @@ def raport_txt(pozycje, info, tytul, wszystkie=False, po_dniach=False):
         linie.append(f"   ({_ostatni_txt(p)})")
         for f in p.fakty[:C.MAKS_FAKTOW]:
             linie.append(f"   • {f.tekst}")
+            t = typ_tekst(f, p, info.get("skutecznosc"))
+            if t:
+                linie.append(f"     → {t}")
         linie.append("")
     if not pozycje:
         linie.append("Brak meczów 4 lig angielskich w tym okresie.")
@@ -138,6 +171,7 @@ h3{font-size:.9rem;color:var(--muted);font-weight:600;margin:1.1rem 0 .3rem}
 ul{margin:.2rem 0 0;padding-left:1.1rem}
 li{margin:.25rem 0}
 li.mocny{font-weight:600}
+.typ{font-weight:400;font-size:.8rem;color:var(--muted);margin:.1rem 0 .3rem}
 details>summary{cursor:pointer;color:var(--accent);font-size:.88rem;font-weight:600;margin-top:.5rem;
 list-style-position:outside;padding:.15rem 0}
 details details>summary{color:var(--ink);font-weight:550;margin-top:.7rem}
@@ -234,10 +268,11 @@ def _wyniki_html(p):
     return f'<details class="wyniki"><summary>{e(tytul)}</summary>{"".join(czesci)}</details>'
 
 
-def _karta(p):
+def _karta(p, skut=None):
     gw = '<span class="badge">★ długa historia</span>' if p.dluga_historia else ""
     godz = f"{p.data:%H:%M}" if p.data and (p.data.hour, p.data.minute) != (0, 0) else ""
-    fakty = "".join(f'<li class="{"mocny" if f.waga >= C.PROG_DNIA else ""}">{e(f.tekst)}</li>'
+    fakty = "".join(f'<li class="{"mocny" if f.waga >= C.PROG_DNIA else ""}">{e(f.tekst)}'
+                    + (f'<div class="typ">{e(typ_tekst(f, p, skut))}</div>' if f.typ else "") + "</li>"
                     for f in p.fakty[:C.MAKS_FAKTOW])
     klasa = "card star" if p.dluga_historia else ("card" if p.fakty else "card plain")
     return (f'<div class="{klasa}">'
@@ -278,6 +313,16 @@ def _dane_html(info):
               "1973/74 (jeden nierozegrany mecz). Baraże i puchary nie są uwzględnione.")
     li.append("Kontrola: w sezonach 1993/94, 2000/01, 2010/11 i 2020/21–2024/25 wyniki i daty z archiwum zgadzają się "
               "z football-data.co.uk (1 różnica na ok. 16 tys. meczów: Bristol Rovers – Barnet 26.03.1994).")
+    skut = info.get("skutecznosc")
+    if skut:
+        b = skut["bazowe"]
+        g = skut["glowny_typ"]
+        li.append(f"<b>Typy:</b> zakład zgodny z serią (zakłada, że seria potrwa). Sprawdzone na {_mecze_tys(skut['meczow'])} "
+                  f"z sezonów {skut['okres']} ze średnimi kursami rynkowymi: najmocniejszy typ przy każdym meczu "
+                  f"trafiał w {g['trafione'] * 100:.0f}% i dawał zwrot {_procent(g['zwrot'])} na postawioną złotówkę; "
+                  f"obstawianie wszystkich meczów na ślepo: od {_procent(max(x['zwrot'] for x in b.values()))} "
+                  f"do {_procent(min(x['zwrot'] for x in b.values()))}. Bukmacherzy znają te serie – to nie są typy "
+                  "z przewagą nad kursem.")
     return ('<details class="dane"><summary>Skąd dane i czy są kompletne</summary><ul>'
             + "".join(f"<li>{x}</li>" for x in li) + "</ul></details>")
 
@@ -290,13 +335,13 @@ def raport_html(pozycje, info, dzis, od, do):
         ze = [p for p in dnia if p.fakty]
         bez = sorted([p for p in dnia if not p.fakty], key=lambda p: p.data or dt.datetime.max)
         czesci = [f"<h2>{e(naglowek_dnia(dzien, dzis))}</h2>"]
-        czesci += [_karta(p) for p in ze] or ['<p class="empty">Brak smaczków w meczach tego dnia.</p>']
+        czesci += [_karta(p, info.get("skutecznosc")) for p in ze] or ['<p class="empty">Brak smaczków w meczach tego dnia.</p>']
         if bez:
-            czesci.append("<h3>Pozostałe mecze (bez smaczków)</h3>" + "".join(_karta(p) for p in bez))
+            czesci.append("<h3>Pozostałe mecze (bez smaczków)</h3>" + "".join(_karta(p, info.get("skutecznosc")) for p in bez))
         sekcje.append("".join(czesci))
     bez_daty = [p for p in pozycje if not p.dzien]
     if bez_daty:
-        sekcje.append("<h2>Mecze bez daty</h2>" + "".join(_karta(p) for p in sorted(bez_daty, key=lambda p: -p.waga)))
+        sekcje.append("<h2>Mecze bez daty</h2>" + "".join(_karta(p, info.get("skutecznosc")) for p in sorted(bez_daty, key=lambda p: -p.waga)))
     if not pozycje:
         sekcje.append(f'<p class="empty">Brak meczów 4 lig angielskich {od:%d.%m} – {do:%d.%m.%Y}.</p>')
     ostrz = "".join(f'<div class="warn">{e(o)}</div>' for o in ostrzezenia(info))
@@ -333,5 +378,7 @@ def powiadomienie(pozycje, dzien):
     linie = []
     for p in wybrane:
         godz = f"{p.data:%H:%M} " if p.data and (p.data.hour, p.data.minute) != (0, 0) else ""
-        linie.append(f"{godz}{p.h} – {p.v}: {p.fakty[0].tekst}")
+        f = p.fakty[0]
+        typ = f" → typ {f.typ}" + (f" (kurs ok. {kurs_typu(p.kursy, f.typ):.2f})" if p.kursy else "") if f.typ else ""
+        linie.append(f"{godz}{p.h} – {p.v}: {f.tekst}{typ}")
     return tytul, "\n".join(linie)

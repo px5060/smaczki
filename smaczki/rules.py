@@ -12,6 +12,13 @@ class Fakt:
     waga: float
     tekst: str
     szansa: float | None = field(default=None, compare=False)  # szansa na taką serię (None = nie dotyczy)
+    typ: str | None = field(default=None, compare=False)       # zakład zgodny z serią: 1, X, 2, 1X, X2, 12
+    regula: str | None = field(default=None, compare=False)    # np. "u:nieP" (układ:seria) – do statystyk typów
+    n: int = field(default=0, compare=False)                   # długość serii
+
+
+# Zakład zgodny z serią (perspektywa gospodarza nadchodzącego meczu): seria trwa dalej.
+TYP_ZAKLADU = {"W": "1", "R": "X", "P": "2", "nieP": "1X", "nieW": "X2", "nieR": "12"}
 
 
 def fmt(d):
@@ -225,10 +232,14 @@ def smaczki(hist, h, v, ref=None):
     hist – historia ligowa sprzed meczu; ref – data meczu (do liczenia lat), domyślnie koniec historii.
     """
     ref = pd.Timestamp(ref) if ref is not None else hist.Date.max()
-    st = stawki_sezonow(hist)
-    out = []
-    boisko = hist[(hist.home == h) & (hist.visitor == v)]
     h2h = hist[((hist.home == h) & (hist.visitor == v)) | ((hist.home == v) & (hist.visitor == h))]
+    return fakty_pary(h2h, h, v, ref, stawki_sezonow(hist))
+
+
+def fakty_pary(h2h, h, v, ref, st):
+    """Smaczki z samych meczów pary (h2h: chronologicznie, sprzed meczu); st – odsetki 1X2 sezonów."""
+    out = []
+    boisko = h2h[h2h.home == h]
 
     if len(h2h) == 0:
         out.append(Fakt(C.WAGA_PIERWSZEGO_MECZU, "Pierwszy ligowy mecz tych drużyn w historii."))
@@ -239,10 +250,11 @@ def smaczki(hist, h, v, ref=None):
             out.append(Fakt(przerwa, f"Pierwszy ligowy mecz tych drużyn od {lat(przerwa)} (ostatni: {fmt(ostatni)})."))
 
     # wszystkie istotne serie pary: u gospodarza i we wszystkich meczach (u siebie i na wyjeździe)
-    for df, tekst in [(boisko, _tekst_u_gospodarza), (h2h, _tekst_h2h)]:
+    for df, tekst, uklad in [(boisko, _tekst_u_gospodarza, "u"), (h2h, _tekst_h2h, "h2h")]:
         for s in serie(df, h, st).values():
             if _istotna(s, ref):
-                out.append(Fakt(_waga(s, ref), tekst(s, h, v), 10 ** -s.rzadkosc))
+                out.append(Fakt(_waga(s, ref), tekst(s, h, v), 10 ** -s.rzadkosc,
+                                TYP_ZAKLADU[s.typ], f"{uklad}:{s.typ}", s.n))
 
     out.sort(reverse=True)
     return out

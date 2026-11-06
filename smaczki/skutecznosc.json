@@ -1,0 +1,241 @@
+{
+ "okres": "2005/06–2026/27",
+ "policzono": "2026-11-06",
+ "meczow": 43063,
+ "reguly": {
+  "h2h:P": {
+   "typow": 1160,
+   "trafione": 0.4207,
+   "kurs": 2.613,
+   "zwrot": -0.0424
+  },
+  "h2h:R": {
+   "typow": 204,
+   "trafione": 0.2598,
+   "kurs": 3.426,
+   "zwrot": -0.1237
+  },
+  "h2h:W": {
+   "typow": 983,
+   "trafione": 0.587,
+   "kurs": 1.863,
+   "zwrot": 0.0006
+  },
+  "h2h:nieP": {
+   "typow": 2766,
+   "trafione": 0.7581,
+   "kurs": 1.249,
+   "zwrot": -0.0741
+  },
+  "h2h:nieR": {
+   "typow": 1631,
+   "trafione": 0.7388,
+   "kurs": 1.274,
+   "zwrot": -0.0605
+  },
+  "h2h:nieW": {
+   "typow": 2976,
+   "trafione": 0.6257,
+   "kurs": 1.506,
+   "zwrot": -0.0949
+  },
+  "u:P": {
+   "typow": 376,
+   "trafione": 0.4468,
+   "kurs": 2.617,
+   "zwrot": -0.0262
+  },
+  "u:R": {
+   "typow": 202,
+   "trafione": 0.2327,
+   "kurs": 3.449,
+   "zwrot": -0.2012
+  },
+  "u:W": {
+   "typow": 1810,
+   "trafione": 0.5155,
+   "kurs": 1.997,
+   "zwrot": -0.0728
+  },
+  "u:nieP": {
+   "typow": 6048,
+   "trafione": 0.7277,
+   "kurs": 1.291,
+   "zwrot": -0.0836
+  },
+  "u:nieR": {
+   "typow": 1258,
+   "trafione": 0.7448,
+   "kurs": 1.266,
+   "zwrot": -0.06
+  },
+  "u:nieW": {
+   "typow": 1921,
+   "trafione": 0.6242,
+   "kurs": 1.561,
+   "zwrot": -0.0716
+  }
+ },
+ "reguly_gwiazdka": {
+  "h2h:P": {
+   "typow": 343,
+   "trafione": 0.4577,
+   "kurs": 2.383,
+   "zwrot": -0.0638
+  },
+  "h2h:R": {
+   "typow": 83,
+   "trafione": 0.2048,
+   "kurs": 3.49,
+   "zwrot": -0.3119
+  },
+  "h2h:W": {
+   "typow": 334,
+   "trafione": 0.6108,
+   "kurs": 1.729,
+   "zwrot": -0.0599
+  },
+  "h2h:nieP": {
+   "typow": 555,
+   "trafione": 0.7946,
+   "kurs": 1.182,
+   "zwrot": -0.0817
+  },
+  "h2h:nieR": {
+   "typow": 345,
+   "trafione": 0.7652,
+   "kurs": 1.269,
+   "zwrot": -0.0312
+  },
+  "h2h:nieW": {
+   "typow": 547,
+   "trafione": 0.7038,
+   "kurs": 1.397,
+   "zwrot": -0.0452
+  },
+  "u:P": {
+   "typow": 229,
+   "trafione": 0.4716,
+   "kurs": 2.562,
+   "zwrot": -0.0131
+  },
+  "u:R": {
+   "typow": 125,
+   "trafione": 0.208,
+   "kurs": 3.462,
+   "zwrot": -0.2947
+  },
+  "u:W": {
+   "typow": 463,
+   "trafione": 0.5486,
+   "kurs": 1.858,
+   "zwrot": -0.1
+  },
+  "u:nieP": {
+   "typow": 1080,
+   "trafione": 0.7889,
+   "kurs": 1.244,
+   "zwrot": -0.0387
+  },
+  "u:nieR": {
+   "typow": 529,
+   "trafione": 0.7486,
+   "kurs": 1.262,
+   "zwrot": -0.0591
+  },
+  "u:nieW": {
+   "typow": 527,
+   "trafione": 0.6129,
+   "kurs": 1.471,
+   "zwrot": -0.1516
+  }
+ },
+ "typy": {
+  "1": {
+   "typow": 2793,
+   "trafione": 0.5406,
+   "kurs": 1.95,
+   "zwrot": -0.047
+  },
+  "12": {
+   "typow": 2889,
+   "trafione": 0.7414,
+   "kurs": 1.271,
+   "zwrot": -0.0603
+  },
+  "1X": {
+   "typow": 8814,
+   "trafione": 0.7372,
+   "kurs": 1.278,
+   "zwrot": -0.0806
+  },
+  "2": {
+   "typow": 1536,
+   "trafione": 0.4271,
+   "kurs": 2.614,
+   "zwrot": -0.0384
+  },
+  "X": {
+   "typow": 406,
+   "trafione": 0.2463,
+   "kurs": 3.438,
+   "zwrot": -0.1623
+  },
+  "X2": {
+   "typow": 4897,
+   "trafione": 0.6251,
+   "kurs": 1.527,
+   "zwrot": -0.0857
+  }
+ },
+ "glowny_typ": {
+  "typow": 15215,
+  "trafione": 0.6449,
+  "kurs": 1.587,
+  "zwrot": -0.0719
+ },
+ "glowny_typ_gwiazdka": {
+  "typow": 4153,
+  "trafione": 0.6535,
+  "kurs": 1.615,
+  "zwrot": -0.077
+ },
+ "bazowe": {
+  "1": {
+   "typow": 43063,
+   "trafione": 0.4343,
+   "kurs": 2.423,
+   "zwrot": -0.0603
+  },
+  "X": {
+   "typow": 43063,
+   "trafione": 0.2646,
+   "kurs": 3.531,
+   "zwrot": -0.0845
+  },
+  "2": {
+   "typow": 43063,
+   "trafione": 0.3012,
+   "kurs": 3.694,
+   "zwrot": -0.0812
+  },
+  "1X": {
+   "typow": 43063,
+   "trafione": 0.6988,
+   "kurs": 1.382,
+   "zwrot": -0.0688
+  },
+  "X2": {
+   "typow": 43063,
+   "trafione": 0.5657,
+   "kurs": 1.746,
+   "zwrot": -0.0791
+  },
+  "12": {
+   "typow": 43063,
+   "trafione": 0.7354,
+   "kurs": 1.279,
+   "zwrot": -0.0604
+  }
+ }
+}

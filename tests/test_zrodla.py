@@ -117,11 +117,11 @@ class TestAPI(Tmp):
         self.assertEqual(nagl["x-rapidapi-host"], "api-football-v1.p.rapidapi.com")
 
 
-FIXTURES = ("﻿Div,Date,Time,HomeTeam,AwayTeam,Referee,B365H\n"
-            "E0,07/11/2026,15:00,Arsenal,Hull,,1.2\n"
-            "SP1,07/11/2026,15:00,Real Madrid,Getafe,,1.1\n"
-            "E1,10/11/2026,19:45,Derby,Bolton,,2.0\n"
-            "E3,06/11/2026,19:45,Walsall,Barrow,,2.1\n")
+FIXTURES = ("\ufeffDiv,Date,Time,HomeTeam,AwayTeam,Referee,B365H,AvgH,AvgD,AvgA\n"
+            "E0,07/11/2026,15:00,Arsenal,Hull,,1.2,1.25,6.0,11.0\n"
+            "SP1,07/11/2026,15:00,Real Madrid,Getafe,,1.1,1.1,8,20\n"
+            "E1,10/11/2026,19:45,Derby,Bolton,,2.0,2.6,3.5,2.5\n"
+            "E3,06/11/2026,19:45,Walsall,Barrow,,2.1,,,\n")
 
 WYNIKI_E0 = ("﻿Div,Date,Time,HomeTeam,AwayTeam,FTHG,FTAG,FTR\n"
              "E0,22/08/2026,15:00,Wolves,Man United,2,1,H\n"
@@ -131,9 +131,9 @@ WYNIKI_E0 = ("﻿Div,Date,Time,HomeTeam,AwayTeam,FTHG,FTAG,FTR\n"
 class TestFootballData(Tmp):
     def test_terminarz(self):
         t = dl.fd_terminarz_z_tekstu(FIXTURES, dt.date(2026, 11, 6), dt.date(2026, 11, 7))
-        self.assertEqual([(m.liga, m.home, m.away, m.data) for m in t],
-                         [("Premier League", "Arsenal", "Hull", dt.datetime(2026, 11, 7, 16, 0)),
-                          ("League Two", "Walsall", "Barrow", dt.datetime(2026, 11, 6, 20, 45))])
+        self.assertEqual([(m.liga, m.home, m.away, m.data, m.kursy) for m in t],
+                         [("Premier League", "Arsenal", "Hull", dt.datetime(2026, 11, 7, 16, 0), (1.25, 6.0, 11.0)),
+                          ("League Two", "Walsall", "Barrow", dt.datetime(2026, 11, 6, 20, 45), None)])
 
     def test_wyniki_i_cache(self):
         def get(url):
@@ -263,6 +263,31 @@ class TestSeriePary(unittest.TestCase):
         self.assertIn("B wygrał u A 6 razy z rzędu (od 1991 r.). A nie wygrał u siebie z B od 1990 r. "
                       "(ostatnio 01.10.1990, 3:0).", t)
         self.assertIn("B wygrał z A 12 razy z rzędu, u siebie i na wyjeździe", t)
+
+
+class TestTypy(unittest.TestCase):
+    def test_kursy_i_trafienia(self):
+        from smaczki.report import kurs_typu
+        from smaczki.skutecznosc import trafiony
+        self.assertAlmostEqual(kurs_typu((2.0, 4.0, 4.0), "1"), 2.0)
+        self.assertAlmostEqual(kurs_typu((2.0, 4.0, 4.0), "1X"), 1 / (1 / 2 + 1 / 4))
+        self.assertAlmostEqual(kurs_typu((2.0, 4.0, 4.0), "12"), 1 / (1 / 2 + 1 / 4))
+        self.assertTrue(trafiony(1, 1, "X2") and trafiony(0, 2, "X2") and not trafiony(2, 0, "X2"))
+        self.assertTrue(trafiony(3, 1, "12") and not trafiony(1, 1, "12"))
+
+    def test_typ_przy_smaczku(self):
+        from smaczki.report import typ_tekst
+        f = Fakt(32, "Bolton nie wygrał u Derby od 1981 r. (16 meczów).", typ="1X", regula="u:nieP", n=16)
+        p = Pozycja(dt.datetime(2026, 11, 6, 21), "Championship", "Derby County", "Bolton", [f], kursy=(2.0, 4.0, 4.0))
+        skut = {"okres": "2005/06–2026/27", "reguly": {"u:nieP": {"typow": 6048, "trafione": 0.728,
+                                                                 "kurs": 1.29, "zwrot": -0.084}}}
+        self.assertEqual(typ_tekst(f, p, skut), "Typ: 1X (gospodarz nie przegra) · kurs ok. 1.33 · "
+                         "w przeszłości 73% trafień, zwrot −8% (6\u00a0048 typów od 2005/06)")
+        self.assertEqual(typ_tekst(Fakt(30, "Pierwszy mecz"), p, skut), "")
+
+    def test_kazda_seria_ma_typ(self):
+        from smaczki.rules import TYP_ZAKLADU, TYPY
+        self.assertEqual(set(TYP_ZAKLADU), set(TYPY))
 
 
 class TestRaport(unittest.TestCase):
