@@ -117,7 +117,8 @@ def typ_tekst(t, p, skut):
     k = kurs_typu(p.kursy, t.typ)
     if k:
         czesci.append(f"kurs ok. {k:.2f}")
-    st = ((skut or {}).get("wspolne") or {}).get(t.klucz)
+    st = ((skut or {}).get("reguly") or {}).get(t.regula) if t.regula else None  # typ z jednej serii
+    st = st or ((skut or {}).get("wspolne") or {}).get(t.klucz)
     if st and st.get("typow", 0) >= 30:
         typow = odmiana(st["typow"], "typ", "typy", "typów").replace(str(st["typow"]), _tys(st["typow"]), 1)
         if st.get("zwrot") is not None:
@@ -144,7 +145,7 @@ def gole_teksty(p):
 
 
 def ostateczny_tekst(p, skut):
-    """Jeden typ na mecz (najdłuższa seria, potem najwyższy kurs) z kursem i wynikiem takiego typu w przeszłości."""
+    """Jeden typ na mecz: typ najdłuższej serii (potem najwyższy kurs) z kursem i wynikiem w przeszłości."""
     t = p.ostateczny
     if t is None:
         return ""
@@ -163,7 +164,7 @@ def predykcja(pozycje, dzien=None):
         t = p.ostateczny
         if t is None:
             continue
-        seria = max((f for f in p.fakty if f.typ and rynek_typu(f.typ) == t.rynek), key=lambda f: (f.n, f.waga))
+        seria = t.fakt or max((f for f in p.fakty if f.typ and rynek_typu(f.typ) == t.rynek), key=lambda f: (f.n, f.waga))
         kandydaci.append((klucz_wyboru(t, p.kursy), p, t, seria))
     if not kandydaci:
         return None

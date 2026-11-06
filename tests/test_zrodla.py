@@ -339,10 +339,17 @@ class TestTypy(unittest.TestCase):
     def test_ostateczny_typ_i_gole(self):
         from smaczki.report import gole_teksty, ostateczny_tekst
         from smaczki.rules import gole_pary, typ_ostateczny
+        from smaczki.rules import typy_wspolne as typy_wspolne_
         fakty = [Fakt(37, "6 remisów", typ="X", n=6), Fakt(22, "x2", typ="X2", n=10),
                  Fakt(30, "under 11", typ="U2.5", n=11), Fakt(45, "wynik", typ="S0:0", n=4)]
         t = typ_ostateczny(fakty)  # najdłuższa seria (bez dokładnego wyniku): under w 11 meczach
         self.assertEqual((t.rynek, t.typ, t.najdluzsza), ("gole", "U2.5", 11))
+        # Derby – Bolton: część wspólna serii to 1, ale ostateczny typ to typ najdłuższej serii (16 meczów): 1X
+        derby = [Fakt(32, "Bolton nie wygrał u Derby od 1981 r. (16 meczów)", typ="1X", regula="u:nieP", n=16),
+                 Fakt(24, "Derby wygrał u siebie 6 razy z rzędu", typ="1", regula="u:W", n=6)]
+        self.assertEqual(typy_wspolne_(derby)[0].typ, "1")
+        t = typ_ostateczny(derby, {"1": 2.61, "X": 3.51, "2": 2.49})
+        self.assertEqual((t.typ, t.najdluzsza, t.regula, t.fakt.n), ("1X", 16, "u:nieP", 16))
         rowne = [Fakt(30, "a", typ="1X", n=5), Fakt(20, "b", typ="O2.5", n=5)]
         self.assertEqual(typ_ostateczny(rowne).typ, "1X")  # bez kursów: kolejność rynków
         kursy = {"1": 2.0, "X": 4.0, "2": 4.0, "O2.5": 2.1, "U2.5": 1.75}

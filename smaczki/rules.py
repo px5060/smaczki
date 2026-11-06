@@ -33,6 +33,8 @@ class TypWspolny:
     skladowe: list      # typy z poszczególnych serii, np. ["X", "X2", "1X"]
     sila: float = 0.0   # waga najmocniejszej serii za tym typem
     najdluzsza: int = 0  # liczba meczów najdłuższej serii za tym typem
+    regula: str = None   # dla ostatecznego typu: reguła serii (np. "u:nieP") – do statystyk z przeszłości
+    fakt: object = None  # dla ostatecznego typu: seria (Fakt), z której pochodzi
 
     @property
     def klucz(self):
@@ -80,14 +82,15 @@ def klucz_wyboru(t, kursy):
 
 
 def typ_ostateczny(fakty, kursy=None):
-    """Jeden typ na mecz: rynek (1X2, gole, obie strzelą) z najdłuższą serią, przy równej długości – z najwyższym
-    kursem; dokładny wynik tylko, gdy nie ma innych. None, gdy brak serii albo serie się wykluczają."""
+    """Jeden typ na mecz: typ najdłuższej serii (najwięcej meczów z rzędu), przy równej długości – ten z najwyższym
+    kursem; dokładny wynik tylko, gdy nie ma innych serii. None, gdy brak serii z typem."""
     kolejnosc = {"1X2": 0, "gole": 1, "BTTS": 2, "wynik": 3}
-    kandydaci = [t for t in typy_wspolne(fakty) if t.typ]
-    glowne = [t for t in kandydaci if t.rynek != "wynik"] or kandydaci
+    z_typem = [f for f in fakty if f.typ]
+    glowne = [f for f in z_typem if rynek_typu(f.typ) != "wynik"] or z_typem
     if not glowne:
         return None
-    return max(glowne, key=lambda t: (*klucz_wyboru(t, kursy), -kolejnosc[t.rynek]))
+    f = max(glowne, key=lambda f: (f.n, kurs_typu(kursy, f.typ) or 0.0, -kolejnosc[rynek_typu(f.typ)], f.waga))
+    return TypWspolny(rynek_typu(f.typ), f.typ, [f.typ], f.waga, f.n, regula=f.regula, fakt=f)
 
 
 def rynek_typu(typ):

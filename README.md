@@ -156,9 +156,10 @@ Pod smaczkami jest **jeden typ meczu na każdy rynek**:
 - **Obie strzelą:** tak albo nie.
 - **Dokładny wynik:** gdy ten sam wynik padł co najmniej 3 razy z rzędu.
 
-Na końcu jest **jeden ostateczny typ** na mecz: typ z tego rynku (1X2, gole albo obie strzelą), za którym stoi
-**najdłuższa seria** (najwięcej meczów z rzędu), a przy równej długości – ten z **najwyższym kursem**.
-Dokładny wynik jest ostatecznym typem tylko wtedy, gdy nie ma innych serii.
+Na końcu jest **jeden ostateczny typ** na mecz: typ **najdłuższej serii** (najwięcej meczów z rzędu), a przy
+równej długości – ten z **najwyższym kursem**. Przykład Derby – Bolton: część wspólna serii to 1 (Derby wygrał
+u siebie 6 razy z rzędu), ale najdłuższa seria to „Bolton nie wygrał u Derby od 1981 r. (16 meczów)”, więc
+ostateczny typ to **1X**. Dokładny wynik jest ostatecznym typem tylko wtedy, gdy nie ma innych serii.
 
 Na samym końcu strony (i raportu) jest **jedna ostateczna predykcja**: spośród wszystkich meczów na stronie
 ten z najdłuższą serią, a przy równej długości – z najwyższym kursem; obok seria, na której się opiera. Powiadomienie na telefon podaje
@@ -206,13 +207,13 @@ Ostateczny typ (jeden na mecz):
 
 | Ostateczny typ | Typów | Trafione | Przeciętnie | Śr. kurs | Zwrot |
 |---|---|---|---|---|---|
-| z rynku 1X2 | 14 367 | 62.5% | 58.1% | 1.67 | −6.4% |
+| z rynku 1X2 | 14 338 | 68.1% | 64.4% | 1.47 | −5.8% |
 | obie strzelą | 2 149 | 50.2% | 50.4% | – | brak kursów |
-| z rynku goli | 3 309 | 51.0% | 50.1% | 1.85 | −6.7% |
+| z rynku goli | 3 338 | 51.1% | 50.1% | 1.85 | −6.7% |
 | dokładny wynik | 90 | 7.8% | 9.3% | – | brak kursów |
-| **razem, z kursem** | 17 676 | 60.4% | 56.6% | 1.71 | −6.5% |
-| **razem, z kursem, mecze z ★** | 5 303 | 59.4% | 53.2% | 1.78 | −7.6% |
-| **ostateczna predykcja dnia** (najdłuższa seria dnia; liczba = dni) | 2 974 | 63.8% | 57.7% | 1.62 | −6.2% |
+| **razem, z kursem** | 17 676 | 64.9% | 61.7% | 1.54 | −5.9% |
+| **razem, z kursem, mecze z ★** | 5 303 | 68.1% | 62.6% | 1.48 | −5.5% |
+| **ostateczna predykcja dnia** (najdłuższa seria dnia; liczba = dni) | 2 974 | 71.1% | 65.8% | 1.39 | −4.8% |
 
 Serie wykluczały się w 0 meczach (1X2) i w 0 meczach (gole).
 
