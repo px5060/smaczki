@@ -231,6 +231,7 @@ class TestCLI(Tmp):
         self.assertIn('<div class="liga pusta"><span>Premier League</span><span class="lic">brak meczów</span>', strona)
         self.assertIn("Ostateczna predykcja dnia", strona)
         self.assertIn("Wszystkie typy dnia", strona)
+        self.assertIn('<details class="seria">', strona)  # typ dnia rozwija listę meczów serii
         self.assertEqual(urlopen.call_count, 1)
         req = urlopen.call_args[0][0]
         self.assertIn("ntfy.sh/test-temat?title=Smaczki", req.full_url)
@@ -289,6 +290,31 @@ class TestSeriePary(unittest.TestCase):
         t = "\n".join(f.tekst for f in smaczki(para(w), "A", "B", pd.Timestamp("2026-11-07")))
         self.assertNotIn("Poniżej 2.5 bramki", t)
         self.assertNotIn("bez gola (BTTS nie)", t)
+
+    def test_przebieg_serii_obecna_i_wczesniejsze(self):
+        from smaczki.rules import przebieg_serii
+        # B nie wygrał u A (nieP): 5 meczów (seria), wygrana B, 2 mecze (za krótko), wygrana B, 4 mecze (obecna)
+        w = ([(1990 + i, "A", 1, 0) for i in range(5)] + [(1995, "A", 0, 1)] + [(1996, "A", 2, 2), (1997, "A", 1, 0)]
+             + [(1998, "A", 0, 2)] + [(1999 + i, "A", 3, 1) for i in range(4)])
+        h = para(w)
+        et, wcz = przebieg_serii(h, "A", "nieP")
+        self.assertEqual(et, ["dawniej"] * 5 + ["", "", "", ""] + ["teraz"] * 4)
+        self.assertEqual([(od.year, do.year, n) for od, do, n in wcz], [(1990, 1994, 5)])
+        et, _ = przebieg_serii(h, "A", "S", (3, 1))  # ten sam wynik 3:1 – obecna seria 4 mecze
+        self.assertEqual(et[-4:], ["teraz"] * 4)
+
+    def test_rozwijana_seria_na_stronie(self):
+        from smaczki.report import seria_html
+        from smaczki.rules import typ_ostateczny, wyniki_pary
+        w = ([(1990 + i, "A", 1, 0) for i in range(5)] + [(1995, "A", 0, 1)] + [(1996 + i, "A", 2, 1) for i in range(5)])
+        h = para(w)
+        f = Fakt(30, "B nie wygrał u A od 1995 r. (5 meczów)", typ="1X", regula="u:nieP", n=5)
+        p = Pozycja(None, "", "A", "B", [f], wyniki=wyniki_pary(h, "A", "B"))
+        html = seria_html(p, typ_ostateczny([f]))
+        self.assertEqual(html.count('<tr class="teraz">'), 5)
+        self.assertEqual(html.count('<tr class="dawniej">'), 5)
+        self.assertIn("Wcześniejsze serie: 1990–1994 (5 meczów).", html)
+        self.assertIn('<tr class="g">', html)  # mecz, który przerwał serię (wygrana B) – bez tła
 
     def test_gosc_wygrywa_seria_2(self):
         from smaczki.rules import smaczki

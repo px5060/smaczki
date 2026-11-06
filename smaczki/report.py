@@ -6,7 +6,8 @@ from dataclasses import dataclass
 import pandas as pd
 
 from . import config as C
-from .rules import fmt, klucz_wyboru, kurs_typu, mecze, odmiana, rynek_typu, typ_ostateczny, typy_wspolne
+from .rules import (fmt, klucz_wyboru, kurs_typu, mecze, min_dlugosc, odmiana, przebieg_serii, rynek_typu,
+                    typ_ostateczny, typy_wspolne)
 
 DNI = ["poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota", "niedziela"]
 DNI_KROTKO = ["pn", "wt", "śr", "czw", "pt", "sob", "nd"]
@@ -256,9 +257,9 @@ def raport_txt(pozycje, info, tytul, wszystkie=False, po_dniach=False):
 
 CSS = """
 :root{--bg:#f6f4ef;--card:#fff;--ink:#1d1d1b;--muted:#6b6a65;--line:#e4e1d8;--accent:#b4232c;--chip:#efece4;
---star:#b77900;--zebra:#f8f7f3}
+--star:#b77900;--zebra:#f8f7f3;--ziel:#d9f2d5;--nieb:#d9e6fa}
 @media (prefers-color-scheme:dark){:root{--bg:#141413;--card:#1f1f1d;--ink:#ecebe6;--muted:#a3a29b;--line:#34332f;
---accent:#f0656d;--chip:#2b2a27;--star:#f2b443;--zebra:#252522}}
+--accent:#f0656d;--chip:#2b2a27;--star:#f2b443;--zebra:#252522;--ziel:#1e4426;--nieb:#1c3255}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
 main{max-width:680px;margin:0 auto;padding:16px 16px 40px}
@@ -285,7 +286,7 @@ padding:0 .35rem;white-space:nowrap}
 .typy{background:var(--chip);border-radius:10px;padding:.5rem .65rem;margin:.55rem 0 .1rem;font-size:.82rem}
 .typy b{display:block;font-size:.78rem;color:var(--muted);margin-bottom:.15rem}
 .typy div{margin:.15rem 0}
-.typy .ost{margin-top:.45rem;padding-top:.4rem;border-top:1px solid var(--line);font-weight:650;color:var(--ink)}
+.typy details.ost{margin-top:.45rem;padding-top:.4rem;border-top:1px solid var(--line);font-weight:650;color:var(--ink)}
 .kal{display:flex;gap:.4rem;overflow-x:auto;padding:.2rem 0 .5rem;margin:.6rem 0 .2rem;-webkit-overflow-scrolling:touch}
 .kal button{flex:0 0 auto;min-width:3.6rem;display:flex;flex-direction:column;align-items:center;gap:.05rem;
 border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:12px;padding:.4rem .5rem;
@@ -330,6 +331,15 @@ td{padding:.2rem .3rem;border-bottom:1px solid var(--line)}
 tbody tr:nth-child(even){background:var(--zebra)}
 td.c{text-align:center}
 tr.g td{color:var(--accent);font-weight:650}
+tr.teraz td{background:var(--ziel)}
+tr.dawniej td{background:var(--nieb)}
+.lg{display:inline-block;border-radius:6px;padding:0 .4rem;margin:.1rem .3rem .1rem 0;font-size:.75rem}
+.lg.teraz{background:var(--ziel)}
+.lg.dawniej{background:var(--nieb)}
+details.seria>summary{color:inherit;font-size:inherit;font-weight:inherit;margin:0}
+details.seria>summary::after{content:" ▾";color:var(--muted);font-weight:400}
+details.seria[open]>summary::after{content:" ▴"}
+details.seria .opis{font-size:.8rem;color:var(--muted);margin:.35rem 0 .3rem;font-weight:400}
 tr.x td{color:var(--muted)}
 sup{color:var(--muted)}
 .legenda{font-size:.75rem;color:var(--muted);margin:.25rem 0 0}
@@ -359,12 +369,14 @@ def _legenda(df):
     return f'<p class="legenda">° wynik z {e(zrodla)}; pozostałe z archiwum engsoccerdata.</p>'
 
 
-def _tabela_u_gospodarza(df):
-    """Mecze jednej pary u tego samego gospodarza: data, wynik, 1X2 (2 = wygrana gości – wyróżniona), poziom."""
+def _tabela_u_gospodarza(df, znaczniki=None):
+    """Mecze jednej pary u tego samego gospodarza: data, wynik, 1X2 (2 = wygrana gości – wyróżniona), poziom.
+    znaczniki: {indeks wiersza: klasa} – podświetlenie serii ("teraz" / "dawniej")."""
     w = []
     for r in df.itertuples():
         z = _znak(r)
-        w.append(f'<tr class="{"g" if z == "2" else ("x" if z == "X" else "")}"><td>{_data_kom(r)}</td>'
+        kl = ("g" if z == "2" else ("x" if z == "X" else "")) + " " + (znaczniki or {}).get(r.Index, "")
+        w.append(f'<tr class="{kl.strip()}"><td>{_data_kom(r)}</td>'
                  f'<td class="c">{r.hgoal}:{r.vgoal}</td><td class="c">{z}</td><td class="c">{_ou(r)}</td>'
                  f'<td class="c">{r.tier}</td></tr>')
     return ('<table><thead><tr><th>Data</th><th>Wynik</th><th>1X2</th><th>2.5</th><th>Poz.</th></tr></thead>'
@@ -381,14 +393,15 @@ def _bilans(df, h, v):
             f'wygrane {e(h)}: {z.count("1")} · remisy: {z.count("X")} · wygrane {e(v)}: {z.count("2")}</p>')
 
 
-def _tabela_pary(df, h):
+def _tabela_pary(df, h, znaczniki=None):
     """Wszystkie mecze pary (u siebie i na wyjeździe): data, gdzie, wynik, W/R/P z perspektywy h."""
     w = []
     for r in df.itertuples():
         dom = r.home == h
         g, s = (r.hgoal, r.vgoal) if dom else (r.vgoal, r.hgoal)
         wyn = "W" if g > s else ("R" if g == s else "P")
-        w.append(f'<tr class="{"g" if wyn == "P" else ("x" if wyn == "R" else "")}"><td>{_data_kom(r)}</td>'
+        kl = ("g" if wyn == "P" else ("x" if wyn == "R" else "")) + " " + (znaczniki or {}).get(r.Index, "")
+        w.append(f'<tr class="{kl.strip()}"><td>{_data_kom(r)}</td>'
                  f'<td>{"u siebie" if dom else "wyjazd"}</td><td class="c">{r.hgoal}:{r.vgoal}</td>'
                  f'<td class="c">{wyn}</td><td class="c">{_ou(r)}</td><td class="c">{r.tier}</td></tr>')
     return ('<table><thead><tr><th>Data</th><th>Gdzie</th><th>Wynik</th><th>W/R/P</th><th>2.5</th><th>Poz.</th>'
@@ -420,6 +433,35 @@ def _wyniki_html(p):
     return f'<details class="wyniki"><summary>{e(tytul)}</summary>{"".join(czesci)}</details>'
 
 
+def seria_html(p, t):
+    """Mecze pary, z których wynika typ t (TypWspolny z regułą serii): obecna seria na zielono,
+    wcześniejsze przerwane serie tego samego rodzaju na niebiesko; od najnowszego meczu."""
+    if not p.wyniki or not t.regula:
+        return ""
+    uklad, rodzaj = t.regula.split(":")
+    u, rew = p.wyniki["u_gosp"], p.wyniki["rewanze"]
+    df = u.iloc[::-1] if uklad == "u" else pd.concat([u, rew]).sort_values("Date", kind="stable")
+    if not len(df):
+        return ""
+    wynik = tuple(int(x) for x in t.typ[1:].split(":")) if rodzaj == "S" else None
+    etykiety, wczesniejsze = przebieg_serii(df, p.h, rodzaj, wynik)
+    znaczniki = {i: et for i, et in zip(df.index, etykiety) if et}
+    teraz = sum(1 for et in etykiety if et == "teraz")
+    gdzie = f"mecze u {p.h} z {p.v}" if uklad == "u" else f"wszystkie mecze {p.h} z {p.v} (u siebie i na wyjeździe)"
+    legenda = f'<span class="lg teraz">obecna seria – {mecze(teraz)}</span>'
+    if wczesniejsze:
+        spis = ", ".join(f"{od.year}–{do.year} ({mecze(n)})" if od.year != do.year else f"{od.year} ({mecze(n)})"
+                         for od, do, n in wczesniejsze)
+        legenda += (f'<span class="lg dawniej">wcześniejsze serie tego rodzaju (od {mecze(min_dlugosc(rodzaj))})'
+                    f'</span><div class="opis">Wcześniejsze serie: {e(spis)}.</div>')
+    else:
+        legenda += f'<div class="opis">Wcześniej nie było takiej serii (od {mecze(min_dlugosc(rodzaj))}).</div>'
+    nowe = df.iloc[::-1]
+    tabela = _tabela_u_gospodarza(nowe, znaczniki) if uklad == "u" else _tabela_pary(nowe, p.h, znaczniki)
+    opis = f'<div class="opis">{e(t.fakt.tekst) + " " if t.fakt else ""}Pokazane: {e(gdzie)}.</div>'
+    return opis + legenda + tabela
+
+
 def _karta(p, skut=None):
     gw = '<span class="badge">★ długa historia</span>' if p.dluga_historia else ""
     godz = f"{p.data:%H:%M}" if p.data and (p.data.hour, p.data.minute) != (0, 0) else ""
@@ -429,7 +471,8 @@ def _karta(p, skut=None):
     typy = "".join(f"<div>{e(typ_tekst(t, p, skut))}</div>" for t in p.wspolne)
     ost = ostateczny_tekst(p, skut)
     if ost:
-        typy += f'<div class="ost">{e(ost)}</div>'
+        typy += (f'<details class="seria ost"><summary>{e(ost)}</summary>'
+                 f'{seria_html(p, p.ostateczny)}</details>')
     if typy:
         fakty_html_typy = f'<div class="typy"><b>Typ meczu</b>{typy}</div>'
     else:
@@ -498,7 +541,8 @@ def _predykcja_html(pr, skut, tytul="Ostateczna predykcja dnia", typy=None):
     lista = ""
     if typy:
         lista = ('<div class="lista"><b>Wszystkie typy dnia</b><span class="pw">od najdłuższej serii</span><ol>'
-                 + "".join(f'<li class="{"pierwszy" if i == 0 else ""}">{e(typ_linia(p, t))}</li>'
+                 + "".join(f'<li class="{"pierwszy" if i == 0 else ""}"><details class="seria"><summary>'
+                           f'{e(typ_linia(p, t))}</summary>{seria_html(p, t)}</details></li>'
                            for i, (p, t) in enumerate(typy)) + "</ol></div>")
     return (f'<div class="predykcja"><b>{e(tytul)}</b><div class="pm">{e(nag)}</div>'
             f'<div class="pt">{e(typ)}</div><div class="pw">{e(why)}</div>'
