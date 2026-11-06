@@ -42,8 +42,11 @@ MIN_MECZOW_OD_LAT = 5          #   jeśli trwa co najmniej 10 lat i obejmuje co 
 WAGA_PIERWSZEGO_MECZU = 0      # "pierwszy mecz w historii" – tylko informacja (bez serii, bez ★)
 MAKS_FAKTOW = None             # ile faktów pokazać przy meczu (None = wszystkie serie pary)
 MIN_SERIA_WYNIKU = 3           # "ten sam dokładny wynik" – od 3 meczów z rzędu
-MIN_SERIA_GOLI = 8             # powyżej/poniżej 2.5 bramki i "obie strzelą" – tylko długie serie, od 8 meczów
-STAWKI_DOMYSLNE = {"1": 0.45, "X": 0.26, "2": 0.29, "O": 0.49, "B": 0.50}  # gdy brak danych sezonu
+MIN_SERIA_GOLI = 8             # serie bramkowe (powyżej/poniżej 1.5, 2.5, 3.5, obie strzelą, drużyna strzelała)
+                               #   – tylko długie serie, od 8 meczów
+MIN_SERIA_BEZ_GOLA = 5         # "drużyna nie strzeliła gola" – rzadsze, od 5 meczów
+STAWKI_DOMYSLNE = {"1": 0.45, "X": 0.26, "2": 0.29, "O": 0.49, "B": 0.50,  # gdy brak danych sezonu
+                   "O15": 0.74, "O35": 0.26, "HS": 0.75, "AS": 0.66}
 WYNIK_DOMYSLNY = 0.05
 
 # Od tej wagi mecz jest "smaczkiem z długą historią": wyróżnienie na stronie i powiadomienie na telefon.

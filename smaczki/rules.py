@@ -19,7 +19,13 @@ class Fakt:
 
 # Zakład zgodny z serią (perspektywa gospodarza nadchodzącego meczu): seria trwa dalej.
 TYP_ZAKLADU = {"W": "1", "R": "X", "P": "2", "nieP": "1X", "nieW": "X2", "nieR": "12",
-               "O": "O2.5", "U": "U2.5", "B": "BTTS", "nB": "noBTTS"}  # + "S": "Sa:b" (dokładny wynik)
+               "O": "O2.5", "U": "U2.5", "B": "BTTS", "nB": "noBTTS",
+               "O15": "O1.5", "U15": "U1.5", "O35": "O3.5", "U35": "U3.5",
+               "Gh": "GH", "nGh": "nGH", "Gv": "GA", "nGv": "nGA"}  # + "S": "Sa:b" (dokładny wynik)
+
+# rynek każdego zakładu (poza 1X2 i dokładnym wynikiem)
+RYNKI_BRAMEK = {"O2.5": "gole", "U2.5": "gole", "BTTS": "BTTS", "noBTTS": "BTTS", "O1.5": "gole1.5", "U1.5": "gole1.5",
+                "O3.5": "gole3.5", "U3.5": "gole3.5", "GH": "golgosp", "nGH": "golgosp", "GA": "golgosc", "nGA": "golgosc"}
 
 
 TYPY_1X2 = ("1", "X", "2", "1X", "X2", "12")
@@ -52,9 +58,8 @@ def typy_wspolne(fakty):
             wspolne &= set(f.typ)
         out.append(TypWspolny("1X2", "".join(c for c in "1X2" if c in wspolne) or None, [f.typ for f in f1x2],
                               max(f.waga for f in f1x2), max(f.n for f in f1x2)))
-    for rynek, nalezy in [("gole", lambda t: t in ("O2.5", "U2.5")), ("BTTS", lambda t: t in ("BTTS", "noBTTS")),
-                          ("wynik", lambda t: t.startswith("S"))]:
-        ff = [f for f in fakty if f.typ and nalezy(f.typ)]
+    for rynek in list(dict.fromkeys(RYNKI_BRAMEK.values())) + ["wynik"]:
+        ff = [f for f in fakty if f.typ and f.typ not in TYPY_1X2 and rynek_typu(f.typ) == rynek]
         if ff:
             z = [f.typ for f in ff]
             out.append(TypWspolny(rynek, z[0] if len(set(z)) == 1 else None, z, max(f.waga for f in ff),
@@ -84,7 +89,7 @@ def klucz_wyboru(t, kursy):
 def typ_ostateczny(fakty, kursy=None):
     """Jeden typ na mecz: typ najdłuższej serii (najwięcej meczów z rzędu), przy równej długości – ten z najwyższym
     kursem; dokładny wynik tylko, gdy nie ma innych serii. None, gdy brak serii z typem."""
-    kolejnosc = {"1X2": 0, "gole": 1, "BTTS": 2, "wynik": 3}
+    kolejnosc = {"1X2": 0, "gole": 1, "BTTS": 2, "gole1.5": 3, "gole3.5": 4, "golgosp": 5, "golgosc": 6, "wynik": 9}
     z_typem = [f for f in fakty if f.typ]
     glowne = [f for f in z_typem if rynek_typu(f.typ) != "wynik"] or z_typem
     if not glowne:
@@ -96,11 +101,7 @@ def typ_ostateczny(fakty, kursy=None):
 def rynek_typu(typ):
     if typ in TYPY_1X2:
         return "1X2"
-    if typ in ("O2.5", "U2.5"):
-        return "gole"
-    if typ in ("BTTS", "noBTTS"):
-        return "BTTS"
-    return "wynik"
+    return RYNKI_BRAMEK.get(typ, "wynik")
 
 
 def typ_serii(s):
@@ -165,16 +166,22 @@ TYPY = {"W": "W", "R": "R", "P": "P", "nieP": "WR", "nieW": "RP", "nieR": "WP"}
 # (np. "bez porażki w 6" przy "6 wygranych z rzędu") – z wyjątkiem "nigdy nie wygrał".
 ZAWIERA = {"nieP": "WR", "nieW": "RP", "nieR": "WP"}
 
-# Serie bramkowe: O = co najmniej 3 gole (over 2.5), U = najwyżej 2 (under 2.5), B = obie strzeliły,
-# nB = co najmniej jedna bez gola, S = ten sam dokładny wynik.
-TYPY_BRAMEK = ("O", "U", "B", "nB")
+# Serie bramkowe: O / U = powyżej / poniżej 2.5 bramki, O15 / U15 = 1.5, O35 / U35 = 3.5, B / nB = obie strzeliły /
+# co najmniej jedna bez gola, Gh / nGh = gospodarz strzelił / nie strzelił, Gv / nGv = gość strzelił / nie strzelił,
+# S = ten sam dokładny wynik. (Gospodarz i gość – w nadchodzącym meczu; w meczach u siebie i na wyjeździe
+# chodzi o te same drużyny.)
+TYPY_BRAMEK = ("O", "U", "B", "nB", "O15", "U15", "O35", "U35", "Gh", "nGh", "Gv", "nGv")
+# seria ogólna pomijana, gdy tak samo długa jest któraś z węższych (te same mecze, mniej informacji)
+ZAWIERA_BRAMKI = {"U": ("U15",), "U35": ("U15", "U"), "O": ("O35",), "O15": ("O", "O35", "B"),
+                  "nB": ("nGh", "nGv", "U15"), "Gh": ("B",), "Gv": ("B",)}
 
 _STAWKI = {}
 _WYNIKI = {}  # id(stawki) -> {(sezon, gole gosp., gole gości): odsetek}; poza .attrs, bo pandas kopiuje attrs
 
 
 def stawki_sezonow(hist):
-    """Odsetki w każdym sezonie (4 ligi razem): 1, X, 2, O (over 2.5), B (obie strzeliły).
+    """Odsetki w każdym sezonie (4 ligi razem): 1, X, 2, O / O15 / O35 (powyżej 2.5 / 1.5 / 3.5 bramki),
+    B (obie strzeliły), HS / AS (gospodarz / gość strzelił).
     Odsetki dokładnych wyników: wyniki_sezonow(stawki)."""
     klucz = (id(hist), len(hist))
     if klucz not in _STAWKI:
@@ -183,8 +190,9 @@ def stawki_sezonow(hist):
         hg, vg = hist.hgoal.to_numpy(), hist.vgoal.to_numpy()
         z = np.sign(hg - vg)
         df = pd.DataFrame({"s": hist.Season.to_numpy(), "1": z > 0, "X": z == 0, "2": z < 0,
-                           "O": hg + vg >= 3, "B": (hg > 0) & (vg > 0), "hg": hg, "vg": vg})
-        st = df.groupby("s")[["1", "X", "2", "O", "B"]].mean()
+                           "O": hg + vg >= 3, "B": (hg > 0) & (vg > 0), "O15": hg + vg >= 2, "O35": hg + vg >= 4,
+                           "HS": hg > 0, "AS": vg > 0, "hg": hg, "vg": vg})
+        st = df.groupby("s")[["1", "X", "2", "O", "B", "O15", "O35", "HS", "AS"]].mean()
         ile = df.groupby("s").size()
         wyn = df.groupby(["s", "hg", "vg"]).size()
         if len(_WYNIKI) > 16:
@@ -258,19 +266,35 @@ def _od_konca(warunek):
     return n
 
 
+def _bramki(typ, hg, vg, g, s):
+    """Warunek serii bramkowej dla każdego meczu (g, s – gole drużyny i rywala)."""
+    suma = hg + vg
+    return {"O": suma >= 3, "U": suma <= 2, "O15": suma >= 2, "U15": suma <= 1, "O35": suma >= 4, "U35": suma <= 3,
+            "B": (hg > 0) & (vg > 0), "nB": ~((hg > 0) & (vg > 0)),
+            "Gh": g > 0, "nGh": g == 0, "Gv": s > 0, "nGv": s == 0}[typ]
+
+
 def serie_bramek(df, druzyna, stawki):
-    """Bieżące serie bramkowe w meczach df: over/under 2.5, obie strzeliły / nie, ten sam dokładny wynik."""
+    """Bieżące serie bramkowe w meczach df: powyżej/poniżej 1.5, 2.5, 3.5 bramki, obie strzeliły / nie,
+    gole każdej z drużyn (strzelił / nie strzelił), ten sam dokładny wynik. Perspektywa: druzyna."""
     if not len(df):
         return {}
     dom = df.home.to_numpy() == druzyna
     hg, vg = df.hgoal.to_numpy(), df.vgoal.to_numpy()
     sezony = df.Season.to_numpy()
     sez = stawki.reindex(sezony)
-    p_o = sez["O"].fillna(C.STAWKI_DOMYSLNE["O"]).to_numpy()
-    p_b = sez["B"].fillna(C.STAWKI_DOMYSLNE["B"]).to_numpy()
-    btts = (hg > 0) & (vg > 0)
-    warunki = {"O": (hg + vg >= 3, p_o), "U": (hg + vg <= 2, 1 - p_o), "B": (btts, p_b), "nB": (~btts, 1 - p_b)}
+
+    def odsetek(k):
+        return sez[k].fillna(C.STAWKI_DOMYSLNE[k]).to_numpy() if k in sez else np.full(len(df), C.STAWKI_DOMYSLNE[k])
+
+    p_o, p_b, p_o15, p_o35 = odsetek("O"), odsetek("B"), odsetek("O15"), odsetek("O35")
+    p_hs, p_as = odsetek("HS"), odsetek("AS")
+    p_druz = np.where(dom, p_hs, p_as)   # szansa, że drużyna strzeli (u siebie albo na wyjeździe)
+    p_ryw = np.where(dom, p_as, p_hs)
+    szanse = {"O": p_o, "U": 1 - p_o, "O15": p_o15, "U15": 1 - p_o15, "O35": p_o35, "U35": 1 - p_o35,
+              "B": p_b, "nB": 1 - p_b, "Gh": p_druz, "nGh": 1 - p_druz, "Gv": p_ryw, "nGv": 1 - p_ryw}
     g, s = np.where(dom, hg, vg), np.where(dom, vg, hg)  # wynik z perspektywy drużyny
+    warunki = {typ: (_bramki(typ, hg, vg, g, s), szanse[typ]) for typ in TYPY_BRAMEK}
     wynik = (int(g[-1]), int(s[-1]))
     wyniki_st = wyniki_sezonow(stawki)
     p_wyn = np.array([wyniki_st.get((se, a, b) if d else (se, b, a), C.WYNIK_DOMYSLNY)
@@ -286,13 +310,21 @@ def serie_bramek(df, druzyna, stawki):
         out[typ] = Seria(typ, n, float(-np.log10(szansa).sum()), df.iloc[n_all - n],
                          df.iloc[n_all - n - 1] if n < n_all else None, n_all,
                          wynik=wynik if typ == "S" else None)
+    for typ, wezsze in ZAWIERA_BRAMKI.items():
+        if typ in out and any(k in out and out[k].n == out[typ].n for k in wezsze):
+            del out[typ]
     return out
 
 
 def min_dlugosc(typ):
     """Najmniejsza długość serii danego rodzaju, od której jest pokazywana."""
-    return {"S": C.MIN_SERIA_WYNIKU, "O": C.MIN_SERIA_GOLI, "U": C.MIN_SERIA_GOLI,
-            "B": C.MIN_SERIA_GOLI, "nB": C.MIN_SERIA_GOLI}.get(typ, C.MIN_SERIA)
+    if typ == "S":
+        return C.MIN_SERIA_WYNIKU
+    if typ in ("nGh", "nGv"):
+        return C.MIN_SERIA_BEZ_GOLA
+    if typ in TYPY_BRAMEK:
+        return C.MIN_SERIA_GOLI
+    return C.MIN_SERIA
 
 
 def warunek_serii(df, druzyna, typ, wynik=None):
@@ -303,13 +335,8 @@ def warunek_serii(df, druzyna, typ, wynik=None):
     if typ in TYPY:
         kod = np.where(g > s, "W", np.where(g == s, "R", "P"))
         return np.isin(kod, list(TYPY[typ]))
-    if typ == "O":
-        return hg + vg >= 3
-    if typ == "U":
-        return hg + vg <= 2
-    if typ in ("B", "nB"):
-        btts = (hg > 0) & (vg > 0)
-        return btts if typ == "B" else ~btts
+    if typ in TYPY_BRAMEK:
+        return _bramki(typ, hg, vg, g, s)
     if typ == "S":
         return (g == wynik[0]) & (s == wynik[1])
     raise ValueError(typ)
@@ -439,7 +466,16 @@ def _tekst_bramek(s, h, v, h2h=False):
         else:
             wynik = f"{a}:{b} dla {h}" if a > b else f"{b}:{a} dla {v}"
         return f"Ten sam wynik {wynik} w {meczach(n)} z rzędu {gdzie}{od}"
+    if s.typ in ("Gh", "nGh", "Gv", "nGv"):
+        druz, ryw = (h, v) if s.typ in ("Gh", "nGh") else (v, h)
+        czy = "strzelał gola" if s.typ in ("Gh", "Gv") else "nie strzelił gola"
+        if h2h:
+            return f"{druz} {czy} w {meczach(n)} z rzędu z {ryw}{od}"
+        miejsce = f"u siebie z {v}" if druz == h else f"u {h}"
+        return f"{druz} {czy} {miejsce} w {meczach(n)} z rzędu{od}"
     co = {"O": "Powyżej 2.5 bramki (over)", "U": "Poniżej 2.5 bramki (under)",
+          "O15": "Powyżej 1.5 bramki (co najmniej 2 gole)", "U15": "Poniżej 1.5 bramki (najwyżej 1 gol)",
+          "O35": "Powyżej 3.5 bramki (co najmniej 4 gole)", "U35": "Poniżej 3.5 bramki (najwyżej 3 gole)",
           "B": "Obie drużyny strzelały", "nB": "Co najmniej jedna drużyna bez gola (BTTS nie)"}[s.typ]
     return f"{co} w {meczach(n)} z rzędu {gdzie}{od}"
 

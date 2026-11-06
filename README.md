@@ -134,6 +134,9 @@ w dwóch układach. Nie ma rozkładów typu „7 z 10 ostatnich meczów” – t
 | poniżej 2.5 bramki (under), od 8 meczów | „Poniżej 2.5 bramki (under) w 9 meczach z rzędu u X z Y (od 2008 r.).” | „Poniżej 2.5 bramki (under) w 11 meczach z rzędu między X a Y (u siebie i na wyjeździe, od 2004 r.).” |
 | powyżej 2.5 bramki (over), od 8 meczów | „Powyżej 2.5 bramki (over) w 8 meczach z rzędu u X z Y (od 2010 r.).” | jak obok, dla wszystkich meczów pary |
 | obie strzelą / co najmniej jedna bez gola, od 8 meczów | „Obie drużyny strzelały w 8 meczach z rzędu u X z Y (od 2012 r.).” | jak obok |
+| powyżej/poniżej 1.5 i 3.5 bramki, od 8 meczów | „Poniżej 3.5 bramki (najwyżej 3 gole) w 13 meczach z rzędu u West Bromwich Albion z Millwall (od 1991 r.).” | „Powyżej 1.5 bramki (co najmniej 2 gole) w 10 meczach z rzędu między Arsenal a Hull City (u siebie i na wyjeździe, od 2008 r.).” |
+| gospodarz / gość strzelał gola, od 8 meczów | „Ipswich Town strzelał gola u siebie z AFC Bournemouth w 16 meczach z rzędu (od 1947 r.).” | „Tottenham Hotspur strzelał gola w 16 meczach z rzędu z Leeds United (u siebie i na wyjeździe, od 2000 r.).” |
+| gospodarz / gość nie strzelił gola, od 5 meczów | „Bolton nie strzelił gola u Derby w 6 meczach z rzędu (od …).” | „X nie strzelił gola w 6 meczach z rzędu z Y (u siebie i na wyjeździe, …).” |
 | ten sam dokładny wynik (od 3 meczów) | „Ten sam wynik 0:0 w 4 meczach z rzędu u West Bromwich Albion z Millwall (od 2023 r.).” | „Ten sam wynik 1:0 dla X w 3 meczach z rzędu między X a Y …” |
 
 Gdy seria obejmuje całą historię: „Fulham NIGDY nie wygrał ligowo u Arsenal (31 meczów od 1914 r.)”,
@@ -143,11 +146,12 @@ informacją (bez ★ i bez typu); „pierwszy mecz od X lat” nie jest pokazywa
 W tabelach „Pokaż wyniki” jest kolumna 2.5 (pow./pon.).
 
 **Pokazywane są wszystkie serie pary**, które spełniają próg (bez limitu na mecz):
-- co najmniej 4 mecze (powyżej/poniżej 2.5 bramki i „obie strzelą”: co najmniej 8 meczów; ten sam dokładny
-  wynik: 3) i seria rzadsza niż ok. 1 na 20, albo
+- co najmniej 4 mecze (serie bramkowe – powyżej/poniżej 1.5, 2.5, 3.5, obie strzelą, drużyna strzelała: co najmniej
+  8 meczów; drużyna nie strzeliła: 5; ten sam dokładny wynik: 3) i seria rzadsza niż ok. 1 na 20, albo
 - „nie wygrał” trwające co najmniej 10 lat i co najmniej 5 meczów.
 
-Dwie serie złożone z dokładnie tych samych meczów są łączone w jedno zdanie, np. „Manchester United wygrał u siebie z Luton
+Gdy kilka serii bramkowych obejmuje dokładnie te same mecze (np. „poniżej 1.5”, „poniżej 2.5” i „poniżej 3.5”), pokazywana
+jest tylko najwęższa (tu „poniżej 1.5”). Dwie serie 1X2 złożone z dokładnie tych samych meczów są łączone w jedno zdanie, np. „Manchester United wygrał u siebie z Luton
 Town 19 razy z rzędu (od 1899 r.). Luton Town nie wygrał u Manchester United od 1897 r. (ostatnio 18.09.1897, 1:2).”
 
 **Kolejność** (nie jest nigdzie wyświetlana): im mniej prawdopodobna seria przy typowych wynikach z sezonów, w których
@@ -190,14 +194,20 @@ z meczów sprzed danego meczu (tak, jak w dniu meczu). Potem sprawdzane było, c
 | 1X | 5 799 | 72.2% | 70.0% | 1.32 | −6.7% |
 | X2 | 3 114 | 61.1% | 56.6% | 1.57 | −7.7% |
 | 12 | 1 783 | 73.0% | 73.6% | 1.30 | −4.8% |
-| Under 2.5 | 373 | 52.0% | 51.3% | 1.80 | −7.1% |
-| Over 2.5 | 307 | 50.8% | 48.7% | 1.85 | −7.7% |
+| Under 2.5 | 368 | 51.9% | 51.3% | 1.79 | −7.4% |
+| Over 2.5 | 302 | 51.0% | 48.7% | 1.85 | −7.2% |
 | BTTS tak | 396 | 58.8% | 51.9% | – | brak kursów |
-| BTTS nie | 187 | 53.5% | 48.0% | – | brak kursów |
+| BTTS nie | 169 | 52.1% | 48.1% | – | brak kursów |
 | dokładny wynik | 531 | 10.2% | 9.7% | – | brak kursów |
+| Over 1.5 | 2 684 | 74.8% | 73.6% | – | brak kursów |
+| Under 3.5 | 2 730 | 75.3% | 73.6% | – | brak kursów |
+| gol gospodarza – tak | 3 129 | 79.9% | 76.2% | – | brak kursów |
+| gol gospodarza – nie | 139 | 32.4% | 23.6% | – | brak kursów |
+| gol gościa – tak | 2 640 | 72.1% | 68.2% | – | brak kursów |
+| gol gościa – nie | 264 | 37.5% | 31.8% | – | brak kursów |
 | **1X2 razem** | 15 215 | 62.2% | 57.9% | 1.68 | −6.7% |
-| **1X2 razem, mecze z ★** | 4 711 | 60.4% | 53.7% | 1.77 | −8.3% |
-| **gole razem** | 680 | 51.5% | 50.1% | 1.82 | −7.4% |
+| **1X2 razem, mecze z ★** | 5 788 | 61.1% | 54.6% | 1.75 | −7.3% |
+| **gole razem** | 670 | 51.5% | 50.1% | 1.82 | −7.3% |
 
 | Na ślepo, każdy mecz | Typów | Trafione | Przeciętnie | Śr. kurs | Zwrot |
 |---|---|---|---|---|---|
@@ -211,18 +221,30 @@ z meczów sprzed danego meczu (tak, jak w dniu meczu). Potem sprawdzane było, c
 | U2.5 | 43 063 | 51.3% | 51.3% | 1.86 | −5.8% |
 | BTTS | 43 063 | 51.9% | 51.9% | – | brak kursów |
 | noBTTS | 43 063 | 48.1% | 48.1% | – | brak kursów |
+| O1.5 | 43 063 | 73.7% | 73.7% | – | brak kursów |
+| U1.5 | 43 063 | 26.4% | 26.4% | – | brak kursów |
+| O3.5 | 43 063 | 26.4% | 26.4% | – | brak kursów |
+| U3.5 | 43 063 | 73.6% | 73.6% | – | brak kursów |
+| GH | 43 063 | 76.1% | 76.1% | – | brak kursów |
+| nGH | 43 063 | 23.8% | 23.8% | – | brak kursów |
+| GA | 43 063 | 68.1% | 68.1% | – | brak kursów |
+| nGA | 43 063 | 31.9% | 31.9% | – | brak kursów |
 
 Ostateczny typ (jeden na mecz):
 
 | Ostateczny typ | Typów | Trafione | Przeciętnie | Śr. kurs | Zwrot |
 |---|---|---|---|---|---|
-| z rynku 1X2 | 14 923 | 67.8% | 64.0% | 1.48 | −5.9% |
-| obie strzelą | 400 | 57.5% | 50.9% | – | brak kursów |
-| z rynku goli | 544 | 49.8% | 50.1% | 1.84 | −9.3% |
-| dokładny wynik | 150 | 7.3% | 9.5% | – | brak kursów |
-| **razem, z kursem** | 15 467 | 67.1% | 63.5% | 1.49 | −6.0% |
-| **razem, z kursem, mecze z ★** | 4 926 | 68.8% | 63.2% | 1.46 | −5.8% |
-| **ostateczna predykcja dnia** (najdłuższa seria dnia; liczba = dni) | 2 858 | 71.9% | 66.6% | 1.37 | −5.3% |
+| z rynku 1X2 | 11 774 | 68.0% | 64.4% | 1.47 | −6.2% |
+| obie strzelą | 149 | 54.4% | 50.0% | – | brak kursów |
+| gole 2.5 | 264 | 45.1% | 50.4% | 1.85 | −17.2% |
+| gole 1.5 | 1 946 | 73.8% | 73.5% | – | brak kursów |
+| gole 3.5 | 2 426 | 76.0% | 73.6% | – | brak kursów |
+| gol gościa | 1 742 | 71.8% | 67.9% | – | brak kursów |
+| gol gospodarza | 2 182 | 78.9% | 75.8% | – | brak kursów |
+| dokładny wynik | 105 | 7.6% | 9.3% | – | brak kursów |
+| **razem, z kursem** | 12 038 | 67.5% | 64.1% | 1.48 | −6.4% |
+| **razem, z kursem, mecze z ★** | 3 977 | 70.0% | 64.3% | 1.43 | −5.8% |
+| **ostateczna predykcja dnia** (najdłuższa seria dnia; liczba = dni) | 1 456 | 73.4% | 66.7% | 1.36 | −4.5% |
 
 Serie wykluczały się w 0 meczach (1X2) i w 0 meczach (gole).
 

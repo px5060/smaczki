@@ -10,12 +10,40 @@
    "kurs": null,
    "zwrot": null
   },
+  "h2h:Gh": {
+   "typow": 1866,
+   "trafione": 0.7953,
+   "przecietnie": 0.7619,
+   "kurs": null,
+   "zwrot": null
+  },
+  "h2h:Gv": {
+   "typow": 1734,
+   "trafione": 0.7313,
+   "przecietnie": 0.6818,
+   "kurs": null,
+   "zwrot": null
+  },
   "h2h:O": {
-   "typow": 179,
-   "trafione": 0.4804,
-   "przecietnie": 0.4861,
-   "kurs": 1.863,
-   "zwrot": -0.1166
+   "typow": 178,
+   "trafione": 0.4831,
+   "przecietnie": 0.486,
+   "kurs": 1.864,
+   "zwrot": -0.1117
+  },
+  "h2h:O15": {
+   "typow": 1589,
+   "trafione": 0.7489,
+   "przecietnie": 0.7359,
+   "kurs": null,
+   "zwrot": null
+  },
+  "h2h:O35": {
+   "typow": 1,
+   "trafione": 0.0,
+   "przecietnie": 0.272,
+   "kurs": null,
+   "zwrot": null
   },
   "h2h:P": {
    "typow": 1160,
@@ -39,11 +67,25 @@
    "zwrot": null
   },
   "h2h:U": {
-   "typow": 171,
-   "trafione": 0.4912,
-   "przecietnie": 0.5129,
-   "kurs": 1.78,
-   "zwrot": -0.128
+   "typow": 167,
+   "trafione": 0.485,
+   "przecietnie": 0.5132,
+   "kurs": 1.777,
+   "zwrot": -0.1411
+  },
+  "h2h:U15": {
+   "typow": 4,
+   "trafione": 0.25,
+   "przecietnie": 0.2549,
+   "kurs": null,
+   "zwrot": null
+  },
+  "h2h:U35": {
+   "typow": 1641,
+   "trafione": 0.7489,
+   "przecietnie": 0.7355,
+   "kurs": null,
+   "zwrot": null
   },
   "h2h:W": {
    "typow": 983,
@@ -53,9 +95,23 @@
    "zwrot": 0.0006
   },
   "h2h:nB": {
-   "typow": 89,
-   "trafione": 0.4944,
-   "przecietnie": 0.4795,
+   "typow": 81,
+   "trafione": 0.4568,
+   "przecietnie": 0.4804,
+   "kurs": null,
+   "zwrot": null
+  },
+  "h2h:nGh": {
+   "typow": 113,
+   "trafione": 0.3097,
+   "przecietnie": 0.2366,
+   "kurs": null,
+   "zwrot": null
+  },
+  "h2h:nGv": {
+   "typow": 94,
+   "trafione": 0.3936,
+   "przecietnie": 0.3187,
    "kurs": null,
    "zwrot": null
   },
@@ -87,12 +143,40 @@
    "kurs": null,
    "zwrot": null
   },
+  "u:Gh": {
+   "typow": 1526,
+   "trafione": 0.81,
+   "przecietnie": 0.7614,
+   "kurs": null,
+   "zwrot": null
+  },
+  "u:Gv": {
+   "typow": 1339,
+   "trafione": 0.7199,
+   "przecietnie": 0.6825,
+   "kurs": null,
+   "zwrot": null
+  },
   "u:O": {
-   "typow": 138,
-   "trafione": 0.5362,
-   "przecietnie": 0.488,
-   "kurs": 1.829,
-   "zwrot": -0.0431
+   "typow": 133,
+   "trafione": 0.5414,
+   "przecietnie": 0.4876,
+   "kurs": 1.835,
+   "zwrot": -0.0307
+  },
+  "u:O15": {
+   "typow": 1364,
+   "trafione": 0.7529,
+   "przecietnie": 0.7362,
+   "kurs": null,
+   "zwrot": null
+  },
+  "u:O35": {
+   "typow": 5,
+   "trafione": 0.4,
+   "przecietnie": 0.2741,
+   "kurs": null,
+   "zwrot": null
   },
   "u:P": {
    "typow": 376,
@@ -116,11 +200,25 @@
    "zwrot": null
   },
   "u:U": {
-   "typow": 220,
-   "trafione": 0.5318,
-   "przecietnie": 0.5136,
-   "kurs": 1.804,
-   "zwrot": -0.0485
+   "typow": 219,
+   "trafione": 0.5342,
+   "przecietnie": 0.5135,
+   "kurs": 1.805,
+   "zwrot": -0.0441
+  },
+  "u:U15": {
+   "typow": 1,
+   "trafione": 0.0,
+   "przecietnie": 0.2687,
+   "kurs": null,
+   "zwrot": null
+  },
+  "u:U35": {
+   "typow": 1397,
+   "trafione": 0.7545,
+   "przecietnie": 0.7361,
+   "kurs": null,
+   "zwrot": null
   },
   "u:W": {
    "typow": 1810,
@@ -130,9 +228,23 @@
    "zwrot": -0.0728
   },
   "u:nB": {
-   "typow": 98,
-   "trafione": 0.5714,
-   "przecietnie": 0.4805,
+   "typow": 88,
+   "trafione": 0.5795,
+   "przecietnie": 0.4813,
+   "kurs": null,
+   "zwrot": null
+  },
+  "u:nGh": {
+   "typow": 28,
+   "trafione": 0.3929,
+   "przecietnie": 0.2359,
+   "kurs": null,
+   "zwrot": null
+  },
+  "u:nGv": {
+   "typow": 182,
+   "trafione": 0.3846,
+   "przecietnie": 0.3178,
    "kurs": null,
    "zwrot": null
   },
@@ -166,12 +278,40 @@
    "kurs": null,
    "zwrot": null
   },
+  "h2h:Gh": {
+   "typow": 539,
+   "trafione": 0.8071,
+   "przecietnie": 0.7618,
+   "kurs": null,
+   "zwrot": null
+  },
+  "h2h:Gv": {
+   "typow": 504,
+   "trafione": 0.7579,
+   "przecietnie": 0.6822,
+   "kurs": null,
+   "zwrot": null
+  },
   "h2h:O": {
-   "typow": 178,
-   "trafione": 0.4831,
-   "przecietnie": 0.4862,
-   "kurs": 1.864,
-   "zwrot": -0.1117
+   "typow": 177,
+   "trafione": 0.4859,
+   "przecietnie": 0.4861,
+   "kurs": 1.865,
+   "zwrot": -0.1067
+  },
+  "h2h:O15": {
+   "typow": 392,
+   "trafione": 0.7526,
+   "przecietnie": 0.7357,
+   "kurs": null,
+   "zwrot": null
+  },
+  "h2h:O35": {
+   "typow": 1,
+   "trafione": 0.0,
+   "przecietnie": 0.272,
+   "kurs": null,
+   "zwrot": null
   },
   "h2h:P": {
    "typow": 343,
@@ -195,11 +335,25 @@
    "zwrot": null
   },
   "h2h:U": {
-   "typow": 123,
-   "trafione": 0.4797,
-   "przecietnie": 0.5129,
-   "kurs": 1.785,
-   "zwrot": -0.1414
+   "typow": 120,
+   "trafione": 0.475,
+   "przecietnie": 0.513,
+   "kurs": 1.78,
+   "zwrot": -0.1528
+  },
+  "h2h:U15": {
+   "typow": 4,
+   "trafione": 0.25,
+   "przecietnie": 0.2549,
+   "kurs": null,
+   "zwrot": null
+  },
+  "h2h:U35": {
+   "typow": 364,
+   "trafione": 0.7363,
+   "przecietnie": 0.7354,
+   "kurs": null,
+   "zwrot": null
   },
   "h2h:W": {
    "typow": 334,
@@ -209,9 +363,23 @@
    "zwrot": -0.0599
   },
   "h2h:nB": {
-   "typow": 89,
-   "trafione": 0.4944,
-   "przecietnie": 0.4795,
+   "typow": 81,
+   "trafione": 0.4568,
+   "przecietnie": 0.4804,
+   "kurs": null,
+   "zwrot": null
+  },
+  "h2h:nGh": {
+   "typow": 113,
+   "trafione": 0.3097,
+   "przecietnie": 0.2366,
+   "kurs": null,
+   "zwrot": null
+  },
+  "h2h:nGv": {
+   "typow": 94,
+   "trafione": 0.3936,
+   "przecietnie": 0.3187,
    "kurs": null,
    "zwrot": null
   },
@@ -243,12 +411,40 @@
    "kurs": null,
    "zwrot": null
   },
+  "u:Gh": {
+   "typow": 873,
+   "trafione": 0.8236,
+   "przecietnie": 0.7612,
+   "kurs": null,
+   "zwrot": null
+  },
+  "u:Gv": {
+   "typow": 490,
+   "trafione": 0.7082,
+   "przecietnie": 0.6814,
+   "kurs": null,
+   "zwrot": null
+  },
   "u:O": {
-   "typow": 138,
-   "trafione": 0.5362,
-   "przecietnie": 0.488,
-   "kurs": 1.829,
-   "zwrot": -0.0431
+   "typow": 133,
+   "trafione": 0.5414,
+   "przecietnie": 0.4876,
+   "kurs": 1.835,
+   "zwrot": -0.0307
+  },
+  "u:O15": {
+   "typow": 590,
+   "trafione": 0.7525,
+   "przecietnie": 0.7369,
+   "kurs": null,
+   "zwrot": null
+  },
+  "u:O35": {
+   "typow": 5,
+   "trafione": 0.4,
+   "przecietnie": 0.2741,
+   "kurs": null,
+   "zwrot": null
   },
   "u:P": {
    "typow": 229,
@@ -272,11 +468,25 @@
    "zwrot": null
   },
   "u:U": {
-   "typow": 208,
-   "trafione": 0.5481,
-   "przecietnie": 0.5133,
-   "kurs": 1.802,
-   "zwrot": -0.02
+   "typow": 207,
+   "trafione": 0.5507,
+   "przecietnie": 0.5132,
+   "kurs": 1.803,
+   "zwrot": -0.0153
+  },
+  "u:U15": {
+   "typow": 1,
+   "trafione": 0.0,
+   "przecietnie": 0.2687,
+   "kurs": null,
+   "zwrot": null
+  },
+  "u:U35": {
+   "typow": 634,
+   "trafione": 0.7603,
+   "przecietnie": 0.7366,
+   "kurs": null,
+   "zwrot": null
   },
   "u:W": {
    "typow": 463,
@@ -286,9 +496,23 @@
    "zwrot": -0.1
   },
   "u:nB": {
-   "typow": 98,
-   "trafione": 0.5714,
-   "przecietnie": 0.4805,
+   "typow": 88,
+   "trafione": 0.5795,
+   "przecietnie": 0.4813,
+   "kurs": null,
+   "zwrot": null
+  },
+  "u:nGh": {
+   "typow": 28,
+   "trafione": 0.3929,
+   "przecietnie": 0.2359,
+   "kurs": null,
+   "zwrot": null
+  },
+  "u:nGv": {
+   "typow": 182,
+   "trafione": 0.3846,
+   "przecietnie": 0.3178,
    "kurs": null,
    "zwrot": null
   },
@@ -350,19 +574,61 @@
    "kurs": null,
    "zwrot": null
   },
+  "GA": {
+   "typow": 3073,
+   "trafione": 0.7263,
+   "przecietnie": 0.6821,
+   "kurs": null,
+   "zwrot": null
+  },
+  "GH": {
+   "typow": 3392,
+   "trafione": 0.8019,
+   "przecietnie": 0.7617,
+   "kurs": null,
+   "zwrot": null
+  },
+  "O1.5": {
+   "typow": 2953,
+   "trafione": 0.7508,
+   "przecietnie": 0.736,
+   "kurs": null,
+   "zwrot": null
+  },
   "O2.5": {
-   "typow": 317,
-   "trafione": 0.5047,
-   "przecietnie": 0.4869,
-   "kurs": 1.848,
-   "zwrot": -0.0846
+   "typow": 311,
+   "trafione": 0.508,
+   "przecietnie": 0.4867,
+   "kurs": 1.851,
+   "zwrot": -0.077
+  },
+  "O3.5": {
+   "typow": 6,
+   "trafione": 0.3333,
+   "przecietnie": 0.2737,
+   "kurs": null,
+   "zwrot": null
+  },
+  "U1.5": {
+   "typow": 5,
+   "trafione": 0.2,
+   "przecietnie": 0.2577,
+   "kurs": null,
+   "zwrot": null
   },
   "U2.5": {
-   "typow": 391,
-   "trafione": 0.5141,
-   "przecietnie": 0.5133,
-   "kurs": 1.794,
-   "zwrot": -0.0832
+   "typow": 386,
+   "trafione": 0.513,
+   "przecietnie": 0.5134,
+   "kurs": 1.793,
+   "zwrot": -0.0861
+  },
+  "U3.5": {
+   "typow": 3038,
+   "trafione": 0.7515,
+   "przecietnie": 0.7358,
+   "kurs": null,
+   "zwrot": null
   },
   "X": {
    "typow": 406,
@@ -378,27 +644,41 @@
    "kurs": 1.541,
    "zwrot": -0.075
   },
+  "nGA": {
+   "typow": 276,
+   "trafione": 0.3877,
+   "przecietnie": 0.3181,
+   "kurs": null,
+   "zwrot": null
+  },
+  "nGH": {
+   "typow": 141,
+   "trafione": 0.3262,
+   "przecietnie": 0.2364,
+   "kurs": null,
+   "zwrot": null
+  },
   "noBTTS": {
-   "typow": 187,
-   "trafione": 0.5348,
-   "przecietnie": 0.4801,
+   "typow": 169,
+   "trafione": 0.5207,
+   "przecietnie": 0.4808,
    "kurs": null,
    "zwrot": null
   }
  },
  "glowny_typ": {
-  "typow": 15038,
-  "trafione": 0.6417,
-  "przecietnie": 0.5989,
-  "kurs": 1.606,
-  "zwrot": -0.0592
+  "typow": 12413,
+  "trafione": 0.6397,
+  "przecietnie": 0.5976,
+  "kurs": 1.613,
+  "zwrot": -0.0626
  },
  "glowny_typ_gwiazdka": {
-  "typow": 4504,
-  "trafione": 0.6392,
-  "przecietnie": 0.5684,
-  "kurs": 1.647,
-  "zwrot": -0.0649
+  "typow": 4067,
+  "trafione": 0.6398,
+  "przecietnie": 0.5686,
+  "kurs": 1.65,
+  "zwrot": -0.0647
  },
  "wspolne": {
   "1X2:1": {
@@ -451,25 +731,81 @@
    "zwrot": null
   },
   "BTTS:noBTTS": {
-   "typow": 187,
-   "trafione": 0.5348,
-   "przecietnie": 0.4801,
+   "typow": 169,
+   "trafione": 0.5207,
+   "przecietnie": 0.4808,
+   "kurs": null,
+   "zwrot": null
+  },
+  "gole1.5:O1.5": {
+   "typow": 2684,
+   "trafione": 0.7481,
+   "przecietnie": 0.736,
+   "kurs": null,
+   "zwrot": null
+  },
+  "gole1.5:U1.5": {
+   "typow": 5,
+   "trafione": 0.2,
+   "przecietnie": 0.2577,
+   "kurs": null,
+   "zwrot": null
+  },
+  "gole3.5:O3.5": {
+   "typow": 6,
+   "trafione": 0.3333,
+   "przecietnie": 0.2737,
+   "kurs": null,
+   "zwrot": null
+  },
+  "gole3.5:U3.5": {
+   "typow": 2730,
+   "trafione": 0.7527,
+   "przecietnie": 0.7358,
    "kurs": null,
    "zwrot": null
   },
   "gole:O2.5": {
-   "typow": 307,
-   "trafione": 0.5081,
-   "przecietnie": 0.4869,
-   "kurs": 1.849,
-   "zwrot": -0.0768
+   "typow": 302,
+   "trafione": 0.5099,
+   "przecietnie": 0.4867,
+   "kurs": 1.852,
+   "zwrot": -0.0719
   },
   "gole:U2.5": {
-   "typow": 373,
-   "trafione": 0.5201,
+   "typow": 368,
+   "trafione": 0.519,
    "przecietnie": 0.5134,
-   "kurs": 1.796,
-   "zwrot": -0.0714
+   "kurs": 1.795,
+   "zwrot": -0.0742
+  },
+  "golgosc:GA": {
+   "typow": 2640,
+   "trafione": 0.7208,
+   "przecietnie": 0.6821,
+   "kurs": null,
+   "zwrot": null
+  },
+  "golgosc:nGA": {
+   "typow": 264,
+   "trafione": 0.375,
+   "przecietnie": 0.318,
+   "kurs": null,
+   "zwrot": null
+  },
+  "golgosp:GH": {
+   "typow": 3129,
+   "trafione": 0.799,
+   "przecietnie": 0.7617,
+   "kurs": null,
+   "zwrot": null
+  },
+  "golgosp:nGH": {
+   "typow": 139,
+   "trafione": 0.3237,
+   "przecietnie": 0.2361,
+   "kurs": null,
+   "zwrot": null
   },
   "wynik": {
    "typow": 531,
@@ -487,77 +823,105 @@
   "zwrot": -0.0667
  },
  "wspolny_1X2_gwiazdka": {
-  "typow": 4711,
-  "trafione": 0.6043,
-  "przecietnie": 0.5369,
-  "kurs": 1.769,
-  "zwrot": -0.0827
+  "typow": 5788,
+  "trafione": 0.6111,
+  "przecietnie": 0.5465,
+  "kurs": 1.745,
+  "zwrot": -0.0728
  },
  "wspolny_gole": {
-  "typow": 680,
-  "trafione": 0.5147,
+  "typow": 670,
+  "trafione": 0.5149,
   "przecietnie": 0.5014,
-  "kurs": 1.82,
-  "zwrot": -0.0738
+  "kurs": 1.821,
+  "zwrot": -0.0732
  },
  "sprzeczne": {},
  "ostateczny": {
-  "typow": 16017,
-  "trafione": 0.6633,
-  "przecietnie": 0.6272,
-  "kurs": 1.49,
-  "zwrot": -0.0602
+  "typow": 20588,
+  "trafione": 0.7028,
+  "przecietnie": 0.6729,
+  "kurs": 1.475,
+  "zwrot": null
  },
  "ostateczny_z_kursem": {
-  "typow": 15467,
-  "trafione": 0.6713,
-  "przecietnie": 0.6354,
-  "kurs": 1.49,
-  "zwrot": -0.0602
+  "typow": 12038,
+  "trafione": 0.675,
+  "przecietnie": 0.6412,
+  "kurs": 1.475,
+  "zwrot": -0.0639
  },
  "ostateczny_gwiazdka": {
-  "typow": 4926,
-  "trafione": 0.6884,
-  "przecietnie": 0.6324,
-  "kurs": 1.46,
-  "zwrot": -0.0578
+  "typow": 3977,
+  "trafione": 0.7,
+  "przecietnie": 0.6426,
+  "kurs": 1.431,
+  "zwrot": -0.0576
  },
  "ostateczny_rynki": {
   "1X2": {
-   "typow": 14923,
-   "trafione": 0.6776,
-   "przecietnie": 0.6403,
-   "kurs": 1.478,
-   "zwrot": -0.059
+   "typow": 11774,
+   "trafione": 0.6801,
+   "przecietnie": 0.6443,
+   "kurs": 1.466,
+   "zwrot": -0.0615
   },
   "BTTS": {
-   "typow": 400,
-   "trafione": 0.575,
-   "przecietnie": 0.5094,
+   "typow": 149,
+   "trafione": 0.5436,
+   "przecietnie": 0.4995,
    "kurs": null,
    "zwrot": null
   },
   "gole": {
-   "typow": 544,
-   "trafione": 0.4982,
-   "przecietnie": 0.5015,
-   "kurs": 1.836,
-   "zwrot": -0.0927
+   "typow": 264,
+   "trafione": 0.4508,
+   "przecietnie": 0.5037,
+   "kurs": 1.851,
+   "zwrot": -0.1715
+  },
+  "gole1.5": {
+   "typow": 1946,
+   "trafione": 0.7384,
+   "przecietnie": 0.7354,
+   "kurs": null,
+   "zwrot": null
+  },
+  "gole3.5": {
+   "typow": 2426,
+   "trafione": 0.7605,
+   "przecietnie": 0.7355,
+   "kurs": null,
+   "zwrot": null
+  },
+  "golgosc": {
+   "typow": 1742,
+   "trafione": 0.7176,
+   "przecietnie": 0.6786,
+   "kurs": null,
+   "zwrot": null
+  },
+  "golgosp": {
+   "typow": 2182,
+   "trafione": 0.7892,
+   "przecietnie": 0.7575,
+   "kurs": null,
+   "zwrot": null
   },
   "wynik": {
-   "typow": 150,
-   "trafione": 0.0733,
-   "przecietnie": 0.0946,
+   "typow": 105,
+   "trafione": 0.0762,
+   "przecietnie": 0.0935,
    "kurs": null,
    "zwrot": null
   }
  },
  "typ_dnia": {
-  "typow": 2858,
-  "trafione": 0.7187,
-  "przecietnie": 0.6661,
-  "kurs": 1.371,
-  "zwrot": -0.0527
+  "typow": 1456,
+  "trafione": 0.7342,
+  "przecietnie": 0.6668,
+  "kurs": 1.359,
+  "zwrot": -0.0448
  },
  "bazowe": {
   "1": {
@@ -627,6 +991,62 @@
    "typow": 43063,
    "trafione": 0.4814,
    "przecietnie": 0.4813,
+   "kurs": null,
+   "zwrot": null
+  },
+  "O1.5": {
+   "typow": 43063,
+   "trafione": 0.7365,
+   "przecietnie": 0.7365,
+   "kurs": null,
+   "zwrot": null
+  },
+  "U1.5": {
+   "typow": 43063,
+   "trafione": 0.2635,
+   "przecietnie": 0.2635,
+   "kurs": null,
+   "zwrot": null
+  },
+  "O3.5": {
+   "typow": 43063,
+   "trafione": 0.2644,
+   "przecietnie": 0.2644,
+   "kurs": null,
+   "zwrot": null
+  },
+  "U3.5": {
+   "typow": 43063,
+   "trafione": 0.7356,
+   "przecietnie": 0.7356,
+   "kurs": null,
+   "zwrot": null
+  },
+  "GH": {
+   "typow": 43063,
+   "trafione": 0.7615,
+   "przecietnie": 0.7615,
+   "kurs": null,
+   "zwrot": null
+  },
+  "nGH": {
+   "typow": 43063,
+   "trafione": 0.2385,
+   "przecietnie": 0.2385,
+   "kurs": null,
+   "zwrot": null
+  },
+  "GA": {
+   "typow": 43063,
+   "trafione": 0.6814,
+   "przecietnie": 0.6814,
+   "kurs": null,
+   "zwrot": null
+  },
+  "nGA": {
+   "typow": 43063,
+   "trafione": 0.3186,
+   "przecietnie": 0.3186,
    "kurs": null,
    "zwrot": null
   }

@@ -19,15 +19,20 @@ from .data_loader import (_csv_wiersze, _dekoduj, _fd_data, _fd_get, _fd_kod, ku
 from .rules import fakty_pary, kurs_typu, stawki_sezonow, typ_ostateczny, typy_wspolne, wyniki_sezonow
 
 PLIK = os.path.join(os.path.dirname(__file__), "skutecznosc.json")
-TYPY_BAZOWE = ["1", "X", "2", "1X", "X2", "12", "O2.5", "U2.5", "BTTS", "noBTTS"]
+TYPY_BAZOWE = ["1", "X", "2", "1X", "X2", "12", "O2.5", "U2.5", "BTTS", "noBTTS",
+               "O1.5", "U1.5", "O3.5", "U3.5", "GH", "nGH", "GA", "nGA"]
+PROGI = {"O1.5": 2, "O2.5": 3, "O3.5": 4}
 KOLUMNY_K = ["1", "X", "2", "O2.5", "U2.5"]
 
 
 def trafiony(hg, vg, typ):
-    if typ == "O2.5":
-        return hg + vg >= 3
-    if typ == "U2.5":
-        return hg + vg <= 2
+    if typ[0] in "OU" and typ[1:] in ("1.5", "2.5", "3.5"):
+        prog = PROGI["O" + typ[1:]]
+        return hg + vg >= prog if typ[0] == "O" else hg + vg < prog
+    if typ in ("GH", "nGH"):
+        return (hg > 0) == (typ == "GH")
+    if typ in ("GA", "nGA"):
+        return (vg > 0) == (typ == "GA")
     if typ == "BTTS":
         return hg > 0 and vg > 0
     if typ == "noBTTS":
@@ -46,8 +51,13 @@ def przecietnie(st, sezon, typ):
     if sezon not in st.index:
         return np.nan
     r = st.loc[sezon]
-    if typ in ("O2.5", "U2.5"):
-        return r["O"] if typ == "O2.5" else 1 - r["O"]
+    if typ[0] in "OU" and typ[1:] in ("1.5", "2.5", "3.5"):
+        k = {"1.5": "O15", "2.5": "O", "3.5": "O35"}[typ[1:]]
+        return r[k] if typ[0] == "O" else 1 - r[k]
+    if typ in ("GH", "nGH"):
+        return r["HS"] if typ == "GH" else 1 - r["HS"]
+    if typ in ("GA", "nGA"):
+        return r["AS"] if typ == "GA" else 1 - r["AS"]
     if typ in ("BTTS", "noBTTS"):
         return r["B"] if typ == "BTTS" else 1 - r["B"]
     return sum(r[c] for c in typ)

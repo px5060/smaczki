@@ -277,14 +277,30 @@ class TestSeriePary(unittest.TestCase):
             [(r, "B", 0, 0) for r in range(2001, 2009)]
         f = smaczki(para(w), "A", "B", pd.Timestamp("2026-11-07"))
         t = "\n".join(x.tekst for x in f)
-        self.assertIn("Poniżej 2.5 bramki (under) w 8 meczach z rzędu u A z B (od 2001 r.).", t)
-        self.assertIn("Poniżej 2.5 bramki (under) w 16 meczach z rzędu między A a B "
+        # 1:0 u A i 0:0 u B: najwęższe serie zamiast tak samo długich ogólnych (poniżej 2.5, BTTS nie)
+        self.assertIn("Poniżej 1.5 bramki (najwyżej 1 gol) w 8 meczach z rzędu u A z B (od 2001 r.).", t)
+        self.assertIn("Poniżej 1.5 bramki (najwyżej 1 gol) w 16 meczach z rzędu między A a B "
                       "(u siebie i na wyjeździe, od 2001 r.).", t)
+        self.assertIn("B nie strzelił gola u A w 8 meczach z rzędu (od 2001 r.).", t)
+        self.assertIn("B nie strzelił gola w 16 meczach z rzędu z A (u siebie i na wyjeździe, od 2001 r.).", t)
         self.assertIn("Ten sam wynik 1:0 w 8 meczach z rzędu u A z B (od 2001 r.).", t)
-        self.assertIn("Co najmniej jedna drużyna bez gola (BTTS nie) w 16 meczach z rzędu między A a B", t)
+        self.assertNotIn("Poniżej 2.5 bramki", t)
+        self.assertNotIn("(BTTS nie)", t)
         typy = {x.tekst.split(" w ")[0]: x.typ for x in f}
         self.assertEqual(typy["Ten sam wynik 1:0"], "S1:0")
-        self.assertEqual(typy["Poniżej 2.5 bramki (under)"], "U2.5")
+        self.assertEqual(typy["Poniżej 1.5 bramki (najwyżej 1 gol)"], "U1.5")
+        self.assertEqual(typy["B nie strzelił gola u A"], "nGA")
+
+    def test_serie_bramkowe_wysokie_wyniki(self):
+        from smaczki.rules import smaczki
+        w = [(2000, "A", 0, 0)] + [(r, "A", 3, 2) for r in range(2001, 2011)]  # 10 meczów po 5 goli u A
+        f = smaczki(para(w), "A", "B", pd.Timestamp("2026-11-07"))
+        t = "\n".join(x.tekst for x in f)
+        self.assertIn("Powyżej 3.5 bramki (co najmniej 4 gole) w 10 meczach z rzędu u A z B (od 2001 r.).", t)
+        self.assertIn("Obie drużyny strzelały w 10 meczach z rzędu u A z B (od 2001 r.).", t)
+        self.assertNotIn("Powyżej 2.5 bramki", t)  # te same mecze co „powyżej 3.5”
+        self.assertNotIn("strzelał gola", t)        # te same mecze co „obie strzelały”
+        self.assertIn("O3.5", {x.typ for x in f})
 
     def test_serie_bramkowe_dopiero_od_8_meczow(self):
         from smaczki.rules import smaczki
@@ -365,7 +381,7 @@ class TestTypy(unittest.TestCase):
         self.assertEqual(typ_tekst(TypWspolny("1X2", None, ["1", "X2"]), p, skut),
                          "1X2: serie się wykluczają (1, X2) – bez typu")
         self.assertEqual(typ_tekst(TypWspolny("gole", "U2.5", ["U2.5", "U2.5"]), p, skut),
-                         "Gole: Under 2.5 (poniżej 2.5 bramki) – zgodny z 2 seriami · kurs ok. 1.95 · "
+                         "Gole 2.5: Under 2.5 (poniżej 2.5 bramki) – zgodny z 2 seriami · kurs ok. 1.95 · "
                          "w przeszłości 55% trafień, zwrot −5% (900 typów od 2005/06)")
         self.assertEqual(typ_tekst(TypWspolny("BTTS", "BTTS", ["BTTS"]), p, skut),
                          "Obie strzelą: BTTS tak (obie drużyny strzelą) · w przeszłości 51% trafień, "

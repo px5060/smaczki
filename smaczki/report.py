@@ -89,8 +89,14 @@ def _podsumowanie(pozycje):
 OPIS_TYPU = {"1": "wygra gospodarz", "X": "remis", "2": "wygra gość",
              "1X": "gospodarz nie przegra", "X2": "gość nie przegra", "12": "nie będzie remisu",
              "O2.5": "powyżej 2.5 bramki", "U2.5": "poniżej 2.5 bramki",
-             "BTTS": "obie drużyny strzelą", "noBTTS": "co najmniej jedna nie strzeli"}
-NAZWA_TYPU = {"O2.5": "Over 2.5", "U2.5": "Under 2.5", "BTTS": "BTTS tak", "noBTTS": "BTTS nie"}
+             "BTTS": "obie drużyny strzelą", "noBTTS": "co najmniej jedna nie strzeli",
+             "O1.5": "co najmniej 2 gole", "U1.5": "najwyżej 1 gol", "O3.5": "co najmniej 4 gole",
+             "U3.5": "najwyżej 3 gole", "GH": "gospodarz strzeli gola", "nGH": "gospodarz nie strzeli gola",
+             "GA": "gość strzeli gola", "nGA": "gość nie strzeli gola"}
+NAZWA_TYPU = {"O2.5": "Over 2.5", "U2.5": "Under 2.5", "BTTS": "BTTS tak", "noBTTS": "BTTS nie",
+              "O1.5": "Over 1.5", "U1.5": "Under 1.5", "O3.5": "Over 3.5", "U3.5": "Under 3.5",
+              "GH": "Gol gospodarza – tak", "nGH": "Gol gospodarza – nie", "GA": "Gol gościa – tak",
+              "nGA": "Gol gościa – nie"}
 
 
 def nazwa_typu(typ):
@@ -103,7 +109,8 @@ def _procent(x):
     return f"{x * 100:+.0f}%".replace("-", "−")
 
 
-RYNEK = {"1X2": "1X2", "gole": "Gole", "BTTS": "Obie strzelą", "wynik": "Wynik"}
+RYNEK = {"1X2": "1X2", "gole": "Gole 2.5", "BTTS": "Obie strzelą", "wynik": "Wynik", "gole1.5": "Gole 1.5",
+         "gole3.5": "Gole 3.5", "golgosp": "Gol gospodarza", "golgosc": "Gol gościa"}
 
 
 def _krotko(typ):
