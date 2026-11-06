@@ -230,6 +230,7 @@ class TestCLI(Tmp):
         self.assertIn('<details class="liga"><summary><span>Championship</span>', strona)
         self.assertIn('<div class="liga pusta"><span>Premier League</span><span class="lic">brak meczów</span>', strona)
         self.assertIn("Ostateczna predykcja dnia", strona)
+        self.assertIn("Wszystkie typy dnia", strona)
         self.assertEqual(urlopen.call_count, 1)
         req = urlopen.call_args[0][0]
         self.assertIn("ntfy.sh/test-temat?title=Smaczki", req.full_url)
@@ -390,6 +391,13 @@ class TestTypy(unittest.TestCase):
         e = Pozycja(d2, "Premier League", "E", "F", [Fakt(20, "16 bez remisu", typ="12", n=16)],
                     kursy={"1": 2.0, "X": 3.4, "2": 3.6})
         self.assertEqual(predykcja([a, e])[0].h, "Derby County")  # 1X ok. 1.5 > 12 ok. 1.3
+        # wszystkie typy dnia: każdy mecz z serią, od najdłuższej serii
+        from smaczki.report import typ_linia, typy_dnia
+        lista = [typ_linia(p, t) for p, t in typy_dnia([b, c, a, e])]
+        self.assertEqual(lista[0], "21:00 Derby County – Bolton: 1X · kurs 1.51 · seria 16 meczów")
+        self.assertEqual(lista[1], "16:00 E – F: 12 · kurs 1.31 · seria 16 meczów")
+        self.assertEqual(lista[2], "16:00 WBA – Millwall: Under 2.5 · seria 11 meczów")
+        self.assertEqual(len(lista), 3)  # Everton – Coventry bez serii -> bez typu
         nag, typ, why, hist = predykcja_tekst(predykcja([a]), None)
         self.assertEqual(nag, "[Championship] pt 06.11.2026 21:00 Derby County – Bolton")
         self.assertTrue(typ.startswith("1X (gospodarz nie przegra) · kurs ok."))

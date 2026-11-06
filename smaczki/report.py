@@ -156,6 +156,21 @@ def predykcja(pozycje, dzien=None):
     return p, t, seria
 
 
+def typy_dnia(pozycje):
+    """Ostateczne typy wszystkich meczów z serią: [(Pozycja, TypWspolny)] od najdłuższej serii
+    (przy równej długości – od najwyższego kursu). Pierwszy = ostateczna predykcja dnia."""
+    out = [(p, p.ostateczny) for p in pozycje if p.ostateczny is not None]
+    return sorted(out, key=lambda x: klucz_wyboru(x[1], x[0].kursy), reverse=True)
+
+
+def typ_linia(p, t):
+    """Krótka linia typu meczu, np. „21:00 Derby County – Bolton Wanderers: 1X · kurs 1.52 · seria 16 meczów”."""
+    godz = f"{p.data:%H:%M} " if p.data and (p.data.hour, p.data.minute) != (0, 0) else ""
+    k = kurs_typu(p.kursy, t.typ)
+    return (f"{godz}{p.h} – {p.v}: {_krotko(t.typ)}" + (f" · kurs {k:.2f}" if k else "")
+            + f" · seria {mecze(t.najdluzsza)}")
+
+
 def predykcja_tekst(pr, skut):
     """(nagłówek meczu, typ z kursem i historią, uzasadnienie)."""
     p, t, seria = pr
@@ -220,7 +235,10 @@ def raport_txt(pozycje, info, tytul, wszystkie=False, po_dniach=False):
                     linie += _mecz_txt(p, info)
             pr = predykcja(dnia)
             if pr:
-                linie += _predykcja_txt(pr, skut, "OSTATECZNA PREDYKCJA DNIA")
+                linie += _predykcja_txt(pr, skut, "OSTATECZNA PREDYKCJA DNIA")[:-2]
+                linie += ["Wszystkie typy dnia (od najdłuższej serii):"]
+                linie += [f"  {i}. {typ_linia(p, t)}" for i, (p, t) in enumerate(typy_dnia(dnia), 1)]
+                linie += ["=" * 60, ""]
     else:
         for p in sorted(pozycje, key=lambda p: -p.waga):
             if p.fakty or wszystkie:
@@ -296,6 +314,11 @@ background:var(--card)}
 .predykcja .pm{font-weight:650;margin:.3rem 0 .15rem}
 .predykcja .pt{font-weight:650;font-size:1.05rem}
 .predykcja .pw{font-size:.8rem;color:var(--muted);margin-top:.3rem}
+.predykcja .lista{margin-top:.7rem;padding-top:.6rem;border-top:1px solid var(--line)}
+.predykcja .lista b{display:inline;margin-right:.4rem}
+.predykcja ol{margin:.35rem 0 0;padding-left:1.3rem;font-size:.86rem}
+.predykcja ol li{margin:.3rem 0}
+.predykcja ol li.pierwszy{font-weight:650}
 details>summary{cursor:pointer;color:var(--accent);font-size:.88rem;font-weight:600;margin-top:.5rem;
 list-style-position:outside;padding:.15rem 0}
 details details>summary{color:var(--ink);font-weight:550;margin-top:.7rem}
@@ -469,11 +492,17 @@ def _dane_html(info):
 LIGI_KOLEJNOSC = [nazwa for nazwa, _, _ in C.LIGI.values()]
 
 
-def _predykcja_html(pr, skut, tytul="Ostateczna predykcja dnia"):
+def _predykcja_html(pr, skut, tytul="Ostateczna predykcja dnia", typy=None):
+    """Ramka predykcji dnia; typy – lista wszystkich typów dnia [(Pozycja, TypWspolny)] pod spodem."""
     nag, typ, why, hist = predykcja_tekst(pr, skut)
+    lista = ""
+    if typy:
+        lista = ('<div class="lista"><b>Wszystkie typy dnia</b><span class="pw">od najdłuższej serii</span><ol>'
+                 + "".join(f'<li class="{"pierwszy" if i == 0 else ""}">{e(typ_linia(p, t))}</li>'
+                           for i, (p, t) in enumerate(typy)) + "</ol></div>")
     return (f'<div class="predykcja"><b>{e(tytul)}</b><div class="pm">{e(nag)}</div>'
             f'<div class="pt">{e(typ)}</div><div class="pw">{e(why)}</div>'
-            + (f'<div class="pw">{e(hist)}</div>' if hist else "") + "</div>")
+            + (f'<div class="pw">{e(hist)}</div>' if hist else "") + lista + "</div>")
 
 
 def _liga_html(nazwa, mecze_ligi, skut):
@@ -512,7 +541,7 @@ def raport_html(pozycje, info, dzis, od, do):
         pr = predykcja(dnia)
         panele.append(f'<section class="dzien" data-d="{iso}"><h2>{e(naglowek_dnia(dzien, dzis))}</h2>'
                       + "".join(_liga_html(n, m, skut) for n, m in ligi)
-                      + (_predykcja_html(pr, skut) if pr else
+                      + (_predykcja_html(pr, skut, typy=typy_dnia(dnia)) if pr else
                          '<p class="empty">Brak serii – brak ostatecznej predykcji tego dnia.</p>')
                       + "</section>")
     bez_daty = [p for p in pozycje if not p.dzien]
