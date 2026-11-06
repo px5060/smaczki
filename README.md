@@ -51,8 +51,9 @@ Zakończone sezony są zapisywane w `dane/cache/` i nie są pobierane ponownie; 
 
 U góry **kalendarz**: kolejne dni z meczami (terminarz football-data.co.uk obejmuje zwykle kilka najbliższych dni),
 przy każdym dniu liczba meczów z ★. Po wybraniu dnia: **cztery rozwijane zakładki lig** (Premier League,
-Championship, League One, League Two) z licznikami; po rozwinięciu najpierw mecze ze smaczkami (od najciekawszego),
-potem pozostałe. Na dole dnia **ostateczna predykcja dnia** i pod nią **wszystkie typy dnia**: każdy mecz z serią
+Championship, League One, League Two) z licznikami; po rozwinięciu mecze ze smaczkami, od najciekawszego.
+**Mecze bez żadnej serii** (1X2, under/over, obie strzelą, dokładny wynik) **nie są pokazywane**; liga bez nich
+ma dopisek „brak smaczków”. Na dole dnia **ostateczna predykcja dnia** i pod nią **wszystkie typy dnia**: każdy mecz z serią
 w jednej linii (godzina, mecz, ostateczny typ, kurs, długość serii), od najdłuższej serii.
 
 Kliknięcie w typ (na liście typów dnia albo w „★ OSTATECZNY TYP” przy meczu) rozwija mecze pary, z których wynika

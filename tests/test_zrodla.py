@@ -221,7 +221,8 @@ class TestCLI(Tmp):
         self.assertIn("Jutro · sobota 7 listopada", strona)
         self.assertIn("Luton Town – Sheffield United", strona)
         self.assertIn("Pokaż wyniki", strona)                 # podgląd meczów po kliknięciu
-        self.assertIn("01.09.2026<sup>°</sup>", strona)      # wynik spoza archiwum oznaczony
+        self.assertIn("01.10.2022<sup>°</sup>", strona)      # wynik spoza archiwum oznaczony
+        self.assertNotIn("Wolverhampton Wanderers – Sheffield United", strona)  # mecz bez serii – niepokazywany
         self.assertIn("Skąd dane i czy są kompletne", strona)
         # kalendarz dni u góry, rozwijane zakładki lig, ostateczna predykcja każdego dnia
         self.assertIn('<nav class="kal">', strona)
@@ -229,6 +230,7 @@ class TestCLI(Tmp):
         self.assertIn('<section class="dzien" data-d="2026-11-07">', strona)
         self.assertIn('<details class="liga"><summary><span>Championship</span>', strona)
         self.assertIn('<div class="liga pusta"><span>Premier League</span><span class="lic">brak meczów</span>', strona)
+        self.assertIn('<div class="liga pusta"><span>Championship</span><span class="lic">brak smaczków</span>', strona)
         self.assertIn("Ostateczna predykcja dnia", strona)
         self.assertIn("Wszystkie typy dnia", strona)
         self.assertIn('<details class="seria">', strona)  # typ dnia rozwija listę meczów serii
