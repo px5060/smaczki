@@ -32,6 +32,7 @@ class TypWspolny:
     typ: str | None
     skladowe: list      # typy z poszczególnych serii, np. ["X", "X2", "1X"]
     sila: float = 0.0   # waga najmocniejszej serii za tym typem
+    najdluzsza: int = 0  # liczba meczów najdłuższej serii za tym typem
 
     @property
     def klucz(self):
@@ -48,25 +49,45 @@ def typy_wspolne(fakty):
         for f in f1x2:
             wspolne &= set(f.typ)
         out.append(TypWspolny("1X2", "".join(c for c in "1X2" if c in wspolne) or None, [f.typ for f in f1x2],
-                              max(f.waga for f in f1x2)))
+                              max(f.waga for f in f1x2), max(f.n for f in f1x2)))
     for rynek, nalezy in [("gole", lambda t: t in ("O2.5", "U2.5")), ("BTTS", lambda t: t in ("BTTS", "noBTTS")),
                           ("wynik", lambda t: t.startswith("S"))]:
         ff = [f for f in fakty if f.typ and nalezy(f.typ)]
         if ff:
             z = [f.typ for f in ff]
-            out.append(TypWspolny(rynek, z[0] if len(set(z)) == 1 else None, z, max(f.waga for f in ff)))
+            out.append(TypWspolny(rynek, z[0] if len(set(z)) == 1 else None, z, max(f.waga for f in ff),
+                                  max(f.n for f in ff)))
     return out
 
 
-def typ_ostateczny(fakty):
-    """Jeden typ na mecz: rynek (1X2, gole, obie strzelą) z najmocniejszą serią; dokładny wynik tylko,
-    gdy nie ma innych. None, gdy brak serii albo serie się wykluczają."""
+def kurs_typu(kursy, typ):
+    """Kurs typu albo None (podwójna szansa wyliczana z kursów 1X2)."""
+    if not kursy:
+        return None
+    if typ in kursy:
+        return kursy[typ]
+    if typ in ("1X", "X2", "12") and all(c in kursy for c in "1X2"):
+        # podwójna szansa z kursów 1X2: prawdopodobieństwa bez marży + połowa marży (jak na rynku 2-wynikowym)
+        suma = sum(1.0 / kursy[c] for c in "1X2")
+        p = (1.0 / kursy[typ[0]] + 1.0 / kursy[typ[1]]) / suma
+        return max(1.01, 1.0 / (p + (suma - 1.0) / 2))
+    return None
+
+
+def klucz_wyboru(t, kursy):
+    """Kolejność wyboru ostatecznego typu: najdłuższa seria, potem najwyższy kurs."""
+    return (t.najdluzsza, kurs_typu(kursy, t.typ) or 0.0)
+
+
+def typ_ostateczny(fakty, kursy=None):
+    """Jeden typ na mecz: rynek (1X2, gole, obie strzelą) z najdłuższą serią, przy równej długości – z najwyższym
+    kursem; dokładny wynik tylko, gdy nie ma innych. None, gdy brak serii albo serie się wykluczają."""
     kolejnosc = {"1X2": 0, "gole": 1, "BTTS": 2, "wynik": 3}
     kandydaci = [t for t in typy_wspolne(fakty) if t.typ]
     glowne = [t for t in kandydaci if t.rynek != "wynik"] or kandydaci
     if not glowne:
         return None
-    return max(glowne, key=lambda t: (t.sila, -kolejnosc[t.rynek]))
+    return max(glowne, key=lambda t: (*klucz_wyboru(t, kursy), -kolejnosc[t.rynek]))
 
 
 def rynek_typu(typ):

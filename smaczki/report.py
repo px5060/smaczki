@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from . import config as C
-from .rules import fmt, mecze, odmiana, rynek_typu, typ_ostateczny, typy_wspolne
+from .rules import fmt, klucz_wyboru, kurs_typu, mecze, odmiana, rynek_typu, typ_ostateczny, typy_wspolne
 
 DNI = ["poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota", "niedziela"]
 DNI_KROTKO = ["pn", "wt", "śr", "czw", "pt", "sob", "nd"]
@@ -40,7 +40,7 @@ class Pozycja:
 
     @property
     def ostateczny(self):
-        return typ_ostateczny(self.fakty)
+        return typ_ostateczny(self.fakty, self.kursy)
 
     @property
     def dzien(self):
@@ -91,20 +91,6 @@ def nazwa_typu(typ):
     if typ.startswith("S"):
         return f"dokładny wynik {typ[1:]}"
     return f"{NAZWA_TYPU.get(typ, typ)} ({OPIS_TYPU[typ]})"
-
-
-def kurs_typu(kursy, typ):
-    """Kurs typu albo None (podwójna szansa wyliczana z kursów 1X2)."""
-    if not kursy:
-        return None
-    if typ in kursy:
-        return kursy[typ]
-    if typ in ("1X", "X2", "12") and all(c in kursy for c in "1X2"):
-        # podwójna szansa z kursów 1X2: prawdopodobieństwa bez marży + połowa marży (jak na rynku 2-wynikowym)
-        suma = sum(1.0 / kursy[c] for c in "1X2")
-        p = (1.0 / kursy[typ[0]] + 1.0 / kursy[typ[1]]) / suma
-        return max(1.01, 1.0 / (p + (suma - 1.0) / 2))
-    return None
 
 
 def _procent(x):
@@ -158,7 +144,7 @@ def gole_teksty(p):
 
 
 def ostateczny_tekst(p, skut):
-    """Jeden typ na mecz (rynek z najmocniejszą serią) z kursem i wynikiem takiego typu w przeszłości."""
+    """Jeden typ na mecz (najdłuższa seria, potem najwyższy kurs) z kursem i wynikiem takiego typu w przeszłości."""
     t = p.ostateczny
     if t is None:
         return ""
@@ -168,8 +154,8 @@ def ostateczny_tekst(p, skut):
 
 
 def predykcja(pozycje, dzien=None):
-    """Jedna ostateczna predykcja: mecz z najmocniejszym ostatecznym typem (opcjonalnie tylko z danego dnia).
-    Zwraca (Pozycja, TypWspolny, Fakt – najmocniejsza seria za tym typem) albo None."""
+    """Jedna ostateczna predykcja: mecz z najdłuższą serią, przy równej długości – z najwyższym kursem
+    (opcjonalnie tylko z danego dnia). Zwraca (Pozycja, TypWspolny, Fakt – najdłuższa seria za typem) albo None."""
     kandydaci = []
     for p in pozycje:
         if dzien is not None and p.dzien != dzien:
@@ -177,11 +163,11 @@ def predykcja(pozycje, dzien=None):
         t = p.ostateczny
         if t is None:
             continue
-        seria = max((f for f in p.fakty if f.typ and rynek_typu(f.typ) == t.rynek), key=lambda f: f.waga)
-        kandydaci.append((t.sila, kurs_typu(p.kursy, t.typ) is not None, p, t, seria))
+        seria = max((f for f in p.fakty if f.typ and rynek_typu(f.typ) == t.rynek), key=lambda f: (f.n, f.waga))
+        kandydaci.append((klucz_wyboru(t, p.kursy), p, t, seria))
     if not kandydaci:
         return None
-    _, _, p, t, seria = max(kandydaci, key=lambda x: (x[0], x[1]))
+    _, p, t, seria = max(kandydaci, key=lambda x: x[0])
     return p, t, seria
 
 
@@ -193,9 +179,9 @@ def predykcja_tekst(pr, skut):
     st = (skut or {}).get("typ_dnia")
     hist = ""
     if st and st.get("zwrot") is not None:
-        hist = (f"Taka predykcja (najmocniejszy typ dnia) w przeszłości: {st['trafione'] * 100:.0f}% trafień, "
+        hist = (f"Taka predykcja (typ dnia z najdłuższej serii) w przeszłości: {st['trafione'] * 100:.0f}% trafień, "
                 f"zwrot {_procent(st['zwrot'])} ({_tys(st['typow'])} dni od {skut['okres'][:7]}).")
-    return nag, typ, f"Najmocniejsza seria: {seria.tekst}", hist
+    return nag, typ, f"Najdłuższa seria ({mecze(seria.n)}): {seria.tekst}", hist
 
 
 def ostrzezenia(info):
@@ -453,7 +439,7 @@ def _dane_html(info):
         b = {t: x for t, x in skut["bazowe"].items() if x.get("zwrot") is not None}
         g = skut.get("ostateczny_z_kursem") or skut["wspolny_1X2"]
         li.append(f"<b>Typ meczu:</b> część wspólna typów ze wszystkich serii pary (zakłada, że serie potrwają), osobno "
-                  f"dla 1X2, goli i „obie strzelą”; ostateczny typ – rynek z najmocniejszą serią. Sprawdzone na "
+                  f"dla 1X2, goli i „obie strzelą”; ostateczny typ – rynek z najdłuższą serią, przy równej długości z najwyższym kursem. Sprawdzone na "
                   f"{_mecze_tys(skut['meczow'])} z sezonów {skut['okres']} ze średnimi kursami rynkowymi: ostateczny "
                   f"typ trafiał w {g['trafione'] * 100:.0f}% i dawał zwrot {_procent(g['zwrot'])} na postawioną "
                   "złotówkę; "

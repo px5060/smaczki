@@ -339,11 +339,14 @@ class TestTypy(unittest.TestCase):
     def test_ostateczny_typ_i_gole(self):
         from smaczki.report import gole_teksty, ostateczny_tekst
         from smaczki.rules import gole_pary, typ_ostateczny
-        fakty = [Fakt(37, "6 remisów", typ="X"), Fakt(22, "x2", typ="X2"), Fakt(40, "under 11", typ="U2.5"),
-                 Fakt(45, "wynik", typ="S0:0")]
-        t = typ_ostateczny(fakty)  # najmocniejszy rynek (bez dokładnego wyniku): gole
-        self.assertEqual((t.rynek, t.typ), ("gole", "U2.5"))
-        self.assertEqual(typ_ostateczny([Fakt(30, "a", typ="1X"), Fakt(30, "b", typ="O2.5")]).typ, "1X")
+        fakty = [Fakt(37, "6 remisów", typ="X", n=6), Fakt(22, "x2", typ="X2", n=10),
+                 Fakt(30, "under 11", typ="U2.5", n=11), Fakt(45, "wynik", typ="S0:0", n=4)]
+        t = typ_ostateczny(fakty)  # najdłuższa seria (bez dokładnego wyniku): under w 11 meczach
+        self.assertEqual((t.rynek, t.typ, t.najdluzsza), ("gole", "U2.5", 11))
+        rowne = [Fakt(30, "a", typ="1X", n=5), Fakt(20, "b", typ="O2.5", n=5)]
+        self.assertEqual(typ_ostateczny(rowne).typ, "1X")  # bez kursów: kolejność rynków
+        kursy = {"1": 2.0, "X": 4.0, "2": 4.0, "O2.5": 2.1, "U2.5": 1.75}
+        self.assertEqual(typ_ostateczny(rowne, kursy).typ, "O2.5")  # równa długość -> najwyższy kurs (2.1 > 1.33)
         self.assertEqual(typ_ostateczny([Fakt(30, "s", typ="S1:1")]).typ, "S1:1")
         self.assertIsNone(typ_ostateczny([Fakt(0, "Pierwszy mecz")]))
         p = Pozycja(None, "", "A", "B", fakty, kursy={"1": 2.5, "X": 3.2, "2": 3.0, "O2.5": 2.1, "U2.5": 1.75})
@@ -358,19 +361,24 @@ class TestTypy(unittest.TestCase):
     def test_predykcja_na_koniec(self):
         from smaczki.report import predykcja, predykcja_tekst
         d1, d2 = dt.datetime(2026, 11, 6, 21), dt.datetime(2026, 11, 7, 16)
-        a = Pozycja(d1, "Championship", "Derby County", "Bolton", [Fakt(32, "Bolton nie wygrał u Derby", typ="1X")],
-                    kursy={"1": 2.6, "X": 3.5, "2": 2.5})
-        b = Pozycja(d2, "Championship", "WBA", "Millwall", [Fakt(37, "6 remisów", typ="X"),
-                                                             Fakt(40, "under 11", typ="U2.5")])
+        a = Pozycja(d1, "Championship", "Derby County", "Bolton",
+                    [Fakt(32, "Bolton nie wygrał u Derby", typ="1X", n=16)], kursy={"1": 2.6, "X": 3.5, "2": 2.5})
+        b = Pozycja(d2, "Championship", "WBA", "Millwall", [Fakt(37, "6 remisów", typ="X", n=6),
+                                                             Fakt(30, "under 11", typ="U2.5", n=11)])
         c = Pozycja(d2, "Premier League", "Everton", "Coventry", [Fakt(0, "Pierwszy mecz w historii")])
-        p, t, seria = predykcja([a, b, c])
-        self.assertEqual((p.h, t.typ, seria.tekst), ("WBA", "U2.5", "under 11"))
-        self.assertEqual(predykcja([a, b, c], d1.date())[0].h, "Derby County")  # tylko mecze z danego dnia
+        p, t, seria = predykcja([a, b, c])  # najdłuższa seria: 16 meczów
+        self.assertEqual((p.h, t.typ, seria.tekst), ("Derby County", "1X", "Bolton nie wygrał u Derby"))
+        p, t, seria = predykcja([a, b, c], d2.date())  # tylko mecze z danego dnia
+        self.assertEqual((p.h, t.typ, seria.n), ("WBA", "U2.5", 11))
         self.assertIsNone(predykcja([c]))
+        # równa długość serii -> wyższy kurs
+        e = Pozycja(d2, "Premier League", "E", "F", [Fakt(20, "16 bez remisu", typ="12", n=16)],
+                    kursy={"1": 2.0, "X": 3.4, "2": 3.6})
+        self.assertEqual(predykcja([a, e])[0].h, "Derby County")  # 1X ok. 1.5 > 12 ok. 1.3
         nag, typ, why, hist = predykcja_tekst(predykcja([a]), None)
         self.assertEqual(nag, "[Championship] pt 06.11.2026 21:00 Derby County – Bolton")
         self.assertTrue(typ.startswith("1X (gospodarz nie przegra) · kurs ok."))
-        self.assertEqual(why, "Najmocniejsza seria: Bolton nie wygrał u Derby")
+        self.assertEqual(why, "Najdłuższa seria (16 meczów): Bolton nie wygrał u Derby")
 
     def test_kazda_seria_ma_typ(self):
         from smaczki.rules import TYP_ZAKLADU, TYPY, TYPY_BRAMEK

@@ -3,7 +3,7 @@
 Dla każdego meczu z kursami liczone są serie pary tylko z meczów sprzed tego meczu (jak w dniu meczu),
 a dla każdej istotnej serii sprawdzane jest, czy zakład zgodny z serią wszedł i ile by zarobił/stracił
 przy średnim kursie rynkowym (stawka 1). Kurs podwójnej szansy (1X, X2, 12) jest wyliczany z kursów 1X2:
-prawdopodobieństwa bez marży bukmachera plus połowa marży (report.kurs_typu). Dla "obie strzelą" i dokładnego wyniku kursów w danych nie ma – wtedy liczona jest tylko
+prawdopodobieństwa bez marży bukmachera plus połowa marży (rules.kurs_typu). Dla "obie strzelą" i dokładnego wyniku kursów w danych nie ma – wtedy liczona jest tylko
 skuteczność i porównanie z tym, jak często taki wynik pada przeciętnie w danym sezonie.
 """
 import datetime as dt
@@ -16,8 +16,7 @@ import pandas as pd
 from . import config as C
 from .data_loader import (_csv_wiersze, _dekoduj, _fd_data, _fd_get, _fd_kod, kursy_z_wiersza, sezon_biezacy,
                           zbierz)
-from .report import kurs_typu
-from .rules import fakty_pary, stawki_sezonow, typ_ostateczny, typy_wspolne, wyniki_sezonow
+from .rules import fakty_pary, kurs_typu, stawki_sezonow, typ_ostateczny, typy_wspolne, wyniki_sezonow
 
 PLIK = os.path.join(os.path.dirname(__file__), "skutecznosc.json")
 TYPY_BAZOWE = ["1", "X", "2", "1X", "X2", "12", "O2.5", "U2.5", "BTTS", "noBTTS"]
@@ -124,11 +123,11 @@ def policz(archiwum, cache_dir, od_sezonu=2005, dzis=None, postep=True):
                             "glowny": j == 0, "traf": traf, "przec": przecietnie(st, r.Season, f.typ),
                             "kurs": kurs, "zysk": None if kurs is None else ((kurs - 1) if traf else -1.0)})
         gwiazdka = bool(fakty) and fakty[0].waga >= C.PROG_DNIA
-        ost = typ_ostateczny(fakty)
+        ost = typ_ostateczny(fakty, k)
         if ost is not None:
             kurs = kurs_typu(k, ost.typ)
             traf = trafiony(r.hgoal, r.vgoal, ost.typ)
-            ostateczne.append({"data": r.Date, "sila": ost.sila, "z_kursem": kurs is not None,
+            ostateczne.append({"data": r.Date, "najdl": ost.najdluzsza, "kurs_sort": kurs or 0.0,
                                "klucz": ost.klucz, "rynek": ost.rynek, "gwiazdka": gwiazdka, "traf": traf,
                                "przec": przecietnie(st, r.Season, ost.typ), "kurs": kurs,
                                "zysk": None if kurs is None else ((kurs - 1) if traf else -1.0)})
@@ -184,8 +183,8 @@ def policz(archiwum, cache_dir, od_sezonu=2005, dzis=None, postep=True):
         "ostateczny_z_kursem": _statystyka(o[o.kurs.notna()]),
         "ostateczny_gwiazdka": _statystyka(o[o.gwiazdka & o.kurs.notna()]),
         "ostateczny_rynki": {k: _statystyka(g) for k, g in o.groupby("rynek")},
-        # jedna predykcja na dzień: mecz z najmocniejszym ostatecznym typem (przy remisie – z kursem)
-        "typ_dnia": _statystyka(o.sort_values(["data", "sila", "z_kursem"]).groupby("data").tail(1)
+        # jedna predykcja na dzień: mecz z najdłuższą serią, przy równej długości – z najwyższym kursem
+        "typ_dnia": _statystyka(o.sort_values(["data", "najdl", "kurs_sort"]).groupby("data").tail(1)
                                 .pipe(lambda d: d[d.kurs.notna()])),
         "bazowe": bazowe,
     }

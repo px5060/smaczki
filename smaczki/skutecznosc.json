@@ -503,46 +503,46 @@
  "sprzeczne": {},
  "ostateczny": {
   "typow": 19915,
-  "trafione": 0.5836,
-  "przecietnie": 0.5493,
-  "kurs": 1.722,
+  "trafione": 0.5901,
+  "przecietnie": 0.5575,
+  "kurs": 1.706,
   "zwrot": null
  },
  "ostateczny_z_kursem": {
-  "typow": 16797,
-  "trafione": 0.6003,
-  "przecietnie": 0.5603,
-  "kurs": 1.722,
-  "zwrot": -0.0622
+  "typow": 17676,
+  "trafione": 0.6035,
+  "przecietnie": 0.5663,
+  "kurs": 1.706,
+  "zwrot": -0.0649
  },
  "ostateczny_gwiazdka": {
-  "typow": 5079,
-  "trafione": 0.5907,
-  "przecietnie": 0.5257,
-  "kurs": 1.792,
-  "zwrot": -0.0722
+  "typow": 5303,
+  "trafione": 0.594,
+  "przecietnie": 0.5324,
+  "kurs": 1.776,
+  "zwrot": -0.0757
  },
  "ostateczny_rynki": {
   "1X2": {
-   "typow": 13414,
-   "trafione": 0.6227,
-   "przecietnie": 0.5756,
-   "kurs": 1.691,
-   "zwrot": -0.0614
+   "typow": 14367,
+   "trafione": 0.6249,
+   "przecietnie": 0.5814,
+   "kurs": 1.674,
+   "zwrot": -0.0644
   },
   "BTTS": {
-   "typow": 3028,
-   "trafione": 0.5059,
-   "przecietnie": 0.5016,
+   "typow": 2149,
+   "trafione": 0.5016,
+   "przecietnie": 0.5041,
    "kurs": null,
    "zwrot": null
   },
   "gole": {
-   "typow": 3383,
-   "trafione": 0.5117,
-   "przecietnie": 0.4997,
-   "kurs": 1.846,
-   "zwrot": -0.0653
+   "typow": 3309,
+   "trafione": 0.5104,
+   "przecietnie": 0.5009,
+   "kurs": 1.847,
+   "zwrot": -0.067
   },
   "wynik": {
    "typow": 90,
@@ -553,11 +553,11 @@
   }
  },
  "typ_dnia": {
-  "typow": 2698,
-  "trafione": 0.609,
-  "przecietnie": 0.5316,
-  "kurs": 1.71,
-  "zwrot": -0.0652
+  "typow": 2974,
+  "trafione": 0.6385,
+  "przecietnie": 0.577,
+  "kurs": 1.617,
+  "zwrot": -0.0624
  },
  "bazowe": {
   "1": {
