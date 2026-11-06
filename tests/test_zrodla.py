@@ -9,6 +9,7 @@ from unittest import mock
 
 import pandas as pd
 
+from smaczki import config as C
 from smaczki import data_loader as dl
 from smaczki.cli import main
 from smaczki.report import powiadomienie, Pozycja
@@ -45,6 +46,10 @@ ODPOWIEDZI_API = {
 
 class Tmp(unittest.TestCase):
     def setUp(self):
+        # mini-archiwum ma tylko kilka sezonów – wykrywanie luk sprawdza osobny test
+        luki = mock.patch.object(C, "LUKI_OD_SEZONU", 2024)
+        luki.start()
+        self.addCleanup(luki.stop)
         self._tmp = tempfile.TemporaryDirectory()
         self.tmp = self._tmp.name
         with open(os.path.join(self.tmp, "england.csv"), "w", encoding="utf-8") as f:
@@ -149,6 +154,31 @@ class TestFootballData(Tmp):
             self.assertEqual(len(w), 1)
 
 
+class TestLukiArchiwum(Tmp):
+    def test_brakujacy_sezon_uzupelniany_ze_zrodla(self):
+        # mini-archiwum: sezony 2020, 2023, 2024 -> brak 2021 i 2022 (od LUKI_OD_SEZONU = 2021)
+        with open(os.path.join(self.tmp, "england.csv"), "w", encoding="utf-8") as f:
+            f.write("Date,Season,home,visitor,hgoal,vgoal,tier\n"
+                    "2020-10-10,2020,Derby County,Bolton Wanderers,1,0,2\n"
+                    "2023-10-10,2023,Derby County,Bolton Wanderers,2,0,3\n"
+                    "2024-10-10,2024,Bolton Wanderers,Derby County,2,2,3\n")
+        sezony = []
+
+        def fd(lista, s_biez, cache_dir, od, do, z_terminarzem=True):
+            sezony.extend(lista)
+            return pd.DataFrame([{"Date": pd.Timestamp("2022-09-10"), "Season": 2022, "home": "Derby",
+                                  "visitor": "Bolton", "hgoal": 3, "vgoal": 1, "tier": 3}]), []
+
+        with mock.patch.object(C, "LUKI_OD_SEZONU", 2021), mock.patch.object(dl, "fd_dane", side_effect=fd):
+            d = dl.zbierz(self.tmp, self.cache, "fd", dt.date(2026, 11, 6), dt.date(2026, 11, 6),
+                          dt.date(2026, 11, 7))
+        self.assertEqual(sezony, [2021, 2022, 2025, 2026])
+        self.assertEqual(d.uzupelnione, [2022])
+        self.assertTrue(any("2021/22" in o for o in d.ostrzezenia))  # źródło nie zwróciło 2021/22
+        r = d.hist[d.hist.Season == 2022].iloc[0]
+        self.assertEqual((r.home, r.visitor, r.zrodlo), ("Derby County", "Bolton Wanderers", "football-data.co.uk"))
+
+
 class TestCLI(Tmp):
     def uruchom(self, *argv):
         out = io.StringIO()
@@ -169,8 +199,8 @@ class TestCLI(Tmp):
         self.assertTrue(os.path.exists(raport))
 
     def test_dzis_strona_i_powiadomienie(self):
-        wyniki = pd.DataFrame([{"Date": pd.Timestamp("2026-09-01"), "home": "Wolves", "visitor": "Luton",
-                                "hgoal": 1, "vgoal": 0, "tier": 2}])
+        wyniki = pd.DataFrame([{"Date": pd.Timestamp("2026-09-01"), "Season": 2026, "home": "Wolves",
+                                "visitor": "Luton", "hgoal": 1, "vgoal": 0, "tier": 2}])
         term = [dl.Mecz(dt.datetime(2026, 11, 6, 20, 45), "Championship", "Luton", "Sheffield Utd"),
                 dl.Mecz(dt.datetime(2026, 11, 7, 16, 0), "Championship", "Wolves", "Sheffield Utd")]
         html = os.path.join(self.tmp, "site", "index.html")
@@ -185,6 +215,9 @@ class TestCLI(Tmp):
         self.assertIn("Dziś · piątek 6 listopada", strona)
         self.assertIn("Jutro · sobota 7 listopada", strona)
         self.assertIn("Luton Town – Sheffield United", strona)
+        self.assertIn("Pokaż wyniki", strona)                 # podgląd meczów po kliknięciu
+        self.assertIn("01.09.2026<sup>°</sup>", strona)      # wynik spoza archiwum oznaczony
+        self.assertIn("Skąd dane i czy są kompletne", strona)
         self.assertEqual(urlopen.call_count, 1)
         req = urlopen.call_args[0][0]
         self.assertIn("ntfy.sh/test-temat?title=Smaczki", req.full_url)

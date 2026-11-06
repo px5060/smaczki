@@ -12,7 +12,7 @@ from smaczki.rules import karta_meczu, smaczki
 ARCHIWUM = os.environ.get("SMACZKI_ARCHIWUM",
                           os.path.join(os.path.dirname(__file__), "..", "dane", "england.csv"))
 
-# Wszystkie nazwy z football-data.co.uk z sezonów 2025/26 i 2026/27
+# Wszystkie nazwy z football-data.co.uk z sezonów 2025/26 i 2026/27 (+ "Dag and Red" z 2010/11)
 NAZWY_FD = """AFC Wimbledon|Accrington|Arsenal|Aston Villa|Barnet|Barnsley|Barrow|Birmingham|Blackburn|Blackpool|Bolton|
 Bournemouth|Bradford|Brentford|Brighton|Bristol City|Bristol Rvs|Bromley|Burnley|Burton|Cambridge|Cardiff|Charlton|Chelsea|
 Cheltenham|Chesterfield|Colchester|Coventry|Crawley Town|Crewe|Crystal Palace|Derby|Doncaster|Everton|Exeter|Fleetwood Town|
@@ -20,7 +20,7 @@ Fulham|Gillingham|Grimsby|Harrogate|Huddersfield|Hull|Ipswich|Leeds|Leicester|Le
 Man City|Man United|Mansfield|Middlesbrough|Millwall|Milton Keynes Dons|Newcastle|Newport County|Northampton|Norwich|
 Nott'm Forest|Notts County|Oldham|Oxford|Peterboro|Plymouth|Port Vale|Portsmouth|Preston|QPR|Reading|Rochdale|Rotherham|
 Salford|Sheffield United|Sheffield Weds|Shrewsbury|Southampton|Stevenage|Stockport|Stoke|Sunderland|Swansea|Swindon|
-Tottenham|Tranmere|Walsall|Watford|West Brom|West Ham|Wigan|Wolves|Wrexham|Wycombe|York"""
+Tottenham|Tranmere|Walsall|Watford|West Brom|West Ham|Wigan|Wolves|Wrexham|Wycombe|York|Dag and Red"""
 
 
 def teksty(fakty):
@@ -36,6 +36,10 @@ class TestArchiwum(unittest.TestCase):
 
     def test_koniec_archiwum(self):
         self.assertEqual(self.hist.Date.max().strftime("%d.%m.%Y"), "25.05.2025")
+
+    def test_luka_2022_23(self):
+        from smaczki.data_loader import luki_archiwum
+        self.assertEqual(luki_archiwum(self.hist), [2022])
 
     def test_arsenal_fulham(self):
         f = smaczki(self.hist, "Arsenal", "Fulham")

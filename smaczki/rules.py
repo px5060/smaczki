@@ -138,6 +138,16 @@ def ostatni_u_gospodarza(hist, h, v):
     return boisko.iloc[-1] if len(boisko) else None
 
 
+def wyniki_pary(hist, h, v, forma=10):
+    """Mecze, na których opierają się smaczki (od najnowszego): u gospodarza, rewanże, forma obu drużyn."""
+    return {
+        "u_gosp": hist[(hist.home == h) & (hist.visitor == v)].iloc[::-1],
+        "rewanze": hist[(hist.home == v) & (hist.visitor == h)].iloc[::-1],
+        "forma_h": hist[hist.home == h].tail(forma).iloc[::-1],
+        "forma_v": hist[hist.visitor == v].tail(forma).iloc[::-1],
+    }
+
+
 # ---------- tryb "mecz": pełna karta pary ----------
 
 def _opis(r):

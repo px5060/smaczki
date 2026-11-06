@@ -30,6 +30,7 @@ ALIASY = {
     "Bristol Rvs": "Bristol Rovers",
     "Peterboro": "Peterborough United",
     "Harrogate": "Harrogate Town A.F.C.",
+    "Dag and Red": "Dagenham and Redbridge",
 }
 
 PROG_PODOBIENSTWA = 0.75

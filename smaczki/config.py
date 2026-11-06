@@ -12,6 +12,9 @@ LIGA_PO_TIER = {tier: nazwa for nazwa, tier, _ in LIGI.values()}
 # --- źródła danych ---
 ARCHIWUM_URL = "https://raw.githubusercontent.com/jalapic/engsoccerdata/master/data-raw/england.csv"
 PIERWSZY_SEZON_PO_ARCHIWUM = 2025  # archiwum kończy się 25.05.2025, sezon 2025/26 dopisujemy ze źródła bieżącego
+# Sezony, których brakuje w archiwum (engsoccerdata nie ma całego 2022/23), są wykrywane automatycznie od tego sezonu
+# i dopisywane ze źródła bieżącego (football-data.co.uk ma 4 ligi od 1993/94). Wcześniejsze przerwy to lata wojen.
+LUKI_OD_SEZONU = 1993
 
 FD_URL = "https://www.football-data.co.uk"  # darmowe CSV, bez klucza
 

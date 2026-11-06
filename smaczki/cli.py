@@ -11,7 +11,7 @@ import pandas as pd
 from . import config as C
 from .data_loader import BladDanych, Mecz, pobierz_archiwum, zbierz
 from .report import Pozycja, powiadomienie, raport_html, raport_txt
-from .rules import karta_meczu, ostatni_u_gospodarza, ranking, smaczki
+from .rules import fmt, karta_meczu, ostatni_u_gospodarza, ranking, smaczki, wyniki_pary
 
 if hasattr(sys.stdout, "reconfigure"):  # polskie znaki w konsoli Windows
     for strumien in (sys.stdout, sys.stderr):
@@ -37,9 +37,20 @@ def _data(s):
     return dt.date.fromisoformat(s)
 
 
-def _info(dane):
-    return {"koniec": dane.hist.Date.max(), "zrodlo": dane.zrodlo, "ostrzezenia": dane.ostrzezenia,
-            "tylko_archiwum": dane.tylko_archiwum, "niedopasowane": dane.nazwy.niedopasowane}
+TERMINARZ = {"football-data.co.uk": "football-data.co.uk, plik fixtures.csv (mecze najbliższych dni)",
+             "API-Football": "API-Football, terminarz sezonu (statusy NS/TBD)"}
+
+
+def _info(dane, wlasny_plik=None):
+    h = dane.hist
+    zrodla = {z: (len(g), g.Date.min(), g.Date.max(), sorted(set(g.Season)))
+              for z, g in h.groupby("zrodlo", sort=False)}
+    zrodla = dict(sorted(zrodla.items(), key=lambda x: x[1][1]))
+    return {"koniec": h.Date.max(), "pierwszy": h.Date.min(), "liczba": len(h), "zrodla": zrodla,
+            "zrodlo": dane.zrodlo, "ostrzezenia": dane.ostrzezenia, "tylko_archiwum": dane.tylko_archiwum,
+            "niedopasowane": dane.nazwy.niedopasowane, "uzupelnione": dane.uzupelnione, "pobrano": dane.pobrano,
+            "zrodlo_biezace": dane.biezace,
+            "zrodlo_terminarza": f"własny plik {wlasny_plik}" if wlasny_plik else TERMINARZ.get(dane.biezace, "")}
 
 
 def _pozycje(dane, terminarz, dzis):
@@ -53,7 +64,8 @@ def _pozycje(dane, terminarz, dzis):
             przed[dzien] = dane.hist if dzien is None else dane.hist[dane.hist.Date < pd.Timestamp(dzien)]
         hist = przed[dzien]
         ref = pd.Timestamp(dzien) if dzien else pd.Timestamp(dzis)
-        out.append(Pozycja(m.data, m.liga, h, v, smaczki(hist, h, v, ref), ostatni_u_gospodarza(hist, h, v)))
+        out.append(Pozycja(m.data, m.liga, h, v, smaczki(hist, h, v, ref), ostatni_u_gospodarza(hist, h, v),
+                           wyniki_pary(hist, h, v)))
     return out
 
 
@@ -125,7 +137,7 @@ def cmd_terminarz(a, dzienny):
         sys.exit(f"Brak meczów do rozegrania w okresie {od} – {do}.")
     pozycje = _pozycje(dane, terminarz, dzis)
     _ostrzez_nazwy(dane)
-    info = _info(dane)
+    info = _info(dane, wlasne)
     tytul = f"SMACZKI {'DNIA' if dzienny else 'KOLEJKI'} {od:%d.%m.%Y} – {do:%d.%m.%Y}"
     tekst = raport_txt(pozycje, info, tytul, wszystkie=a.wszystkie, po_dniach=dzienny)
     print(tekst)
@@ -172,6 +184,13 @@ def cmd_mecz(a):
     print("Karta pary:")
     for linia in karta_meczu(dane.hist, h, v):
         print("  • " + linia)
+    if a.wyniki:
+        u = wyniki_pary(dane.hist, h, v)["u_gosp"]
+        print(f"Wszystkie mecze ligowe u {h} z {v} (od najnowszego; ° = wynik spoza archiwum engsoccerdata):")
+        for r in u.itertuples():
+            znak = "1" if r.hgoal > r.vgoal else ("X" if r.hgoal == r.vgoal else "2")
+            stopien = "" if r.zrodlo == "archiwum" else "°"
+            print(f"  {fmt(r.Date)}{stopien:1} {r.hgoal}:{r.vgoal}  {znak}  poziom {r.tier}")
     if dane.tylko_archiwum:
         print("(Bez danych bieżących – sprawdź ręcznie ostatnie sezony.)")
 
@@ -240,6 +259,7 @@ def main(argv=None):
     p = sub.add_parser("mecz", parents=[wspolne], help="pełna informacja o jednej parze")
     p.add_argument("gospodarz")
     p.add_argument("gosc")
+    p.add_argument("--wyniki", action="store_true", help="wypisz też wszystkie mecze u gospodarza")
 
     p = sub.add_parser("ranking", parents=[wspolne], help="najdłuższe passy gości bez wygranej")
     p.add_argument("--top", type=int, default=25)

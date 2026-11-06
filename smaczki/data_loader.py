@@ -21,7 +21,8 @@ from . import config as C
 from .names import Nazwy
 
 NAGLOWKI = {"User-Agent": "smaczki-meczowe/1.0 (python urllib)"}
-KOLUMNY = ["Date", "home", "visitor", "hgoal", "vgoal", "tier"]
+KOLUMNY = ["Date", "Season", "home", "visitor", "hgoal", "vgoal", "tier"]
+KOLUMNY_HIST = KOLUMNY + ["zrodlo"]  # zrodlo: archiwum / football-data.co.uk / API-Football
 
 
 class BladDanych(Exception):
@@ -44,6 +45,9 @@ class Dane:
     zrodlo: str
     ostrzezenia: list = field(default_factory=list)
     tylko_archiwum: bool = False
+    uzupelnione: list = field(default_factory=list)  # sezony brakujące w archiwum, dopisane ze źródła
+    pobrano: dt.datetime | None = None               # kiedy pobrano dane bieżące
+    biezace: str | None = None                       # nazwa źródła bieżącego (None = samo archiwum)
 
 
 def _pobierz(url, naglowki=None, timeout=60):
@@ -96,6 +100,8 @@ def wczytaj_archiwum(sciezka):
     d["hgoal"] = d["hgoal"].astype(int)
     d["vgoal"] = d["vgoal"].astype(int)
     d["tier"] = pd.to_numeric(d["tier"], errors="coerce").fillna(0).astype(int)
+    d["Season"] = pd.to_numeric(d["Season"], errors="coerce").fillna(0).astype(int)
+    d["zrodlo"] = "archiwum"
     return d.sort_values("Date", kind="stable").reset_index(drop=True)
 
 
@@ -168,8 +174,8 @@ def fd_wyniki(sezon, cache_dir, biezacy):
             d, hg, vg = _fd_data(w.get("Date", "")), _int(w.get("FTHG")), _int(w.get("FTAG"))
             if d is None or hg is None or vg is None:
                 continue
-            wiersze.append({"Date": pd.Timestamp(d.date()), "home": w["HomeTeam"], "visitor": w["AwayTeam"],
-                            "hgoal": hg, "vgoal": vg, "tier": tier})
+            wiersze.append({"Date": pd.Timestamp(d.date()), "Season": sezon, "home": w["HomeTeam"],
+                            "visitor": w["AwayTeam"], "hgoal": hg, "vgoal": vg, "tier": tier})
     return pd.DataFrame(wiersze, columns=KOLUMNY)
 
 
@@ -265,14 +271,14 @@ def api_sezon(liga_id, sezon, cache_dir, biezacy):
 
 
 def api_rozdziel(odpowiedzi, od, do):
-    """[(fixture, tier, nazwa_ligi)] -> (DataFrame zakończonych meczów, terminarz NS/TBD z zakresu dat)."""
+    """[(fixture, tier, nazwa_ligi, sezon)] -> (DataFrame zakończonych meczów, terminarz NS/TBD z zakresu dat)."""
     wyniki, terminarz = [], []
-    for f, tier, liga in odpowiedzi:
+    for f, tier, liga, sezon in odpowiedzi:
         status = f["fixture"]["status"]["short"]
         data = dt.datetime.fromisoformat(f["fixture"]["date"][:19])
         h, v = f["teams"]["home"]["name"], f["teams"]["away"]["name"]
         if status in C.API_ZAKONCZONE and f["goals"]["home"] is not None:
-            wyniki.append({"Date": pd.Timestamp(data.date()), "home": h, "visitor": v,
+            wyniki.append({"Date": pd.Timestamp(data.date()), "Season": sezon, "home": h, "visitor": v,
                            "hgoal": int(f["goals"]["home"]), "vgoal": int(f["goals"]["away"]), "tier": tier})
         elif status in C.API_DO_ROZEGRANIA and od <= data.date() <= do:
             terminarz.append(Mecz(data, liga, h, v))
@@ -283,7 +289,7 @@ def api_dane(sezony, s_biez, cache_dir, od, do, z_terminarzem=True):
     odpowiedzi = []
     for nazwa, tier, liga_id in C.LIGI.values():
         for s in sezony:
-            odpowiedzi += [(f, tier, nazwa) for f in api_sezon(liga_id, s, cache_dir, s == s_biez)]
+            odpowiedzi += [(f, tier, nazwa, s) for f in api_sezon(liga_id, s, cache_dir, s == s_biez)]
     wyniki, terminarz = api_rozdziel(odpowiedzi, od, do)
     return wyniki, (terminarz if z_terminarzem else [])
 
@@ -305,7 +311,8 @@ def zbierz(archiwum, cache_dir, zrodlo, dzis, od, do, z_terminarzem=True):
     else:
         kolejnosc = [zrodlo]
     s_biez = sezon_biezacy(dzis)
-    sezony = range(C.PIERWSZY_SEZON_PO_ARCHIWUM, s_biez + 1)
+    luki = luki_archiwum(hist)
+    sezony = luki + list(range(C.PIERWSZY_SEZON_PO_ARCHIWUM, s_biez + 1))
     for z in kolejnosc:
         try:
             if z == "api":
@@ -317,10 +324,32 @@ def zbierz(archiwum, cache_dir, zrodlo, dzis, od, do, z_terminarzem=True):
         except BladDanych as e:
             ostrz.append(str(e))
             continue
+        uzupelnione = [s for s in luki if len(wyniki) and (wyniki.Season == s).any()]
+        for s in luki:
+            if s not in uzupelnione:
+                ostrz.append(f"Archiwum nie ma sezonu {opis_sezonu(s)}, a {OPIS_ZRODLA[z]} go nie zwróciło – "
+                             "smaczki obejmujące ten sezon mogą być nieścisłe.")
         if len(wyniki):
-            wyniki = wyniki.assign(home=wyniki.home.map(nazwy), visitor=wyniki.visitor.map(nazwy))
-            hist = pd.concat([hist, wyniki], ignore_index=True).sort_values("Date", kind="stable") \
+            wyniki = wyniki.assign(home=wyniki.home.map(nazwy), visitor=wyniki.visitor.map(nazwy),
+                                   zrodlo=OPIS_ZRODLA[z])
+            hist = pd.concat([hist, wyniki[KOLUMNY_HIST]], ignore_index=True).sort_values("Date", kind="stable") \
                 .reset_index(drop=True)
-        opis = f"archiwum engsoccerdata + {OPIS_ZRODLA[z]} (od sezonu {opis_sezonu(sezony[0])})"
-        return Dane(hist, term, nazwy, opis, ostrz)
+        opis = f"archiwum engsoccerdata + {OPIS_ZRODLA[z]} (od sezonu {opis_sezonu(C.PIERWSZY_SEZON_PO_ARCHIWUM)})"
+        return Dane(hist, term, nazwy, opis, ostrz, uzupelnione=uzupelnione, pobrano=dt.datetime.now(),
+                    biezace=OPIS_ZRODLA[z])
+    if luki:
+        ostrz.append("Archiwum nie ma sezonu " + ", ".join(map(opis_sezonu, luki)) +
+                     " – bez danych bieżących nie da się go uzupełnić.")
     return Dane(hist, [], nazwy, "samo archiwum engsoccerdata", ostrz, tylko_archiwum=True)
+
+
+def luki_archiwum(hist):
+    """Sezony bez ani jednego meczu w archiwum (od 1993/94 – tyle sięga football-data.co.uk) do jego końca.
+
+    engsoccerdata nie ma całego sezonu 2022/23; jeśli autorzy go dopiszą, nic nie będzie uzupełniane.
+    """
+    if "Season" not in hist or not len(hist):
+        return []
+    ostatni = int(hist.Season.max())
+    jest = set(hist.Season.unique())
+    return [s for s in range(C.LUKI_OD_SEZONU, ostatni + 1) if s not in jest]
