@@ -289,9 +289,62 @@ def serie_bramek(df, druzyna, stawki):
     return out
 
 
+def min_dlugosc(typ):
+    """Najmniejsza długość serii danego rodzaju, od której jest pokazywana."""
+    return {"S": C.MIN_SERIA_WYNIKU, "O": C.MIN_SERIA_GOLI, "U": C.MIN_SERIA_GOLI,
+            "B": C.MIN_SERIA_GOLI, "nB": C.MIN_SERIA_GOLI}.get(typ, C.MIN_SERIA)
+
+
+def warunek_serii(df, druzyna, typ, wynik=None):
+    """Czy każdy mecz df spełnia warunek serii danego rodzaju (z perspektywy drużyny)."""
+    dom = df.home.to_numpy() == druzyna
+    hg, vg = df.hgoal.to_numpy(), df.vgoal.to_numpy()
+    g, s = np.where(dom, hg, vg), np.where(dom, vg, hg)
+    if typ in TYPY:
+        kod = np.where(g > s, "W", np.where(g == s, "R", "P"))
+        return np.isin(kod, list(TYPY[typ]))
+    if typ == "O":
+        return hg + vg >= 3
+    if typ == "U":
+        return hg + vg <= 2
+    if typ in ("B", "nB"):
+        btts = (hg > 0) & (vg > 0)
+        return btts if typ == "B" else ~btts
+    if typ == "S":
+        return (g == wynik[0]) & (s == wynik[1])
+    raise ValueError(typ)
+
+
+def przebieg_serii(df, druzyna, typ, wynik=None):
+    """Serie danego rodzaju w meczach df (chronologicznie).
+
+    Zwraca (etykiety, wcześniejsze): etykiety dla każdego meczu – "teraz" (obecna seria, do ostatniego meczu),
+    "dawniej" (wcześniejsza, przerwana seria tego rodzaju o długości co najmniej progu) albo "";
+    wcześniejsze – lista (data pierwszego, data ostatniego meczu, liczba meczów) od najnowszej.
+    """
+    war = warunek_serii(df, druzyna, typ, wynik)
+    n_all = len(war)
+    etykiety = [""] * n_all
+    wczesniejsze = []
+    i = 0
+    while i < n_all:
+        if not war[i]:
+            i += 1
+            continue
+        j = i
+        while j < n_all and war[j]:
+            j += 1
+        if j == n_all:
+            etykiety[i:j] = ["teraz"] * (j - i)
+        elif j - i >= min_dlugosc(typ):
+            etykiety[i:j] = ["dawniej"] * (j - i)
+            wczesniejsze.append((df.Date.iloc[i], df.Date.iloc[j - 1], j - i))
+        i = j
+    return etykiety, wczesniejsze[::-1]
+
+
 def _istotna(s, ref):
-    min_n = {"S": C.MIN_SERIA_WYNIKU, "O": C.MIN_SERIA_GOLI, "U": C.MIN_SERIA_GOLI,
-             "B": C.MIN_SERIA_GOLI, "nB": C.MIN_SERIA_GOLI}.get(s.typ, C.MIN_SERIA)
+    min_n = min_dlugosc(s.typ)
     if s.n >= min_n and s.rzadkosc >= C.MIN_RZADKOSC:
         return True
     # "nie wygrał od X r." / "nigdy nie wygrał" – także przy mniejszej rzadkości, jeśli trwa długo

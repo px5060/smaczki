@@ -53,7 +53,12 @@ U góry **kalendarz**: kolejne dni z meczami (terminarz football-data.co.uk obej
 przy każdym dniu liczba meczów z ★. Po wybraniu dnia: **cztery rozwijane zakładki lig** (Premier League,
 Championship, League One, League Two) z licznikami; po rozwinięciu najpierw mecze ze smaczkami (od najciekawszego),
 potem pozostałe. Na dole dnia **ostateczna predykcja dnia** i pod nią **wszystkie typy dnia**: każdy mecz z serią
-w jednej linii (godzina, mecz, ostateczny typ, kurs, długość serii), od najdłuższej serii. Wybrany dzień jest zapamiętany w adresie (#RRRR-MM-DD).
+w jednej linii (godzina, mecz, ostateczny typ, kurs, długość serii), od najdłuższej serii.
+
+Kliknięcie w typ (na liście typów dnia albo w „★ OSTATECZNY TYP” przy meczu) rozwija mecze pary, z których wynika
+seria: **obecna seria na zielono**, **wcześniejsze, przerwane serie tego samego rodzaju na niebiesko** (od progu
+długości, np. 4 mecze dla 1X2, 8 dla goli), mecze, które przerywały serie – bez tła. Pod legendą spis wcześniejszych
+serii z latami, np. „1965–1980 (7 meczów), 1947–1952 (6 meczów)”. Wybrany dzień jest zapamiętany w adresie (#RRRR-MM-DD).
 
 ### Podgląd wyników
 
