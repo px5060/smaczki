@@ -1,19 +1,49 @@
-"""Stałe w jednym miejscu: ligi, adresy źródeł i progi smaczków (do strojenia)."""
+"""Stałe w jednym miejscu: kraje i ligi, adresy źródeł i progi smaczków (do strojenia)."""
+from dataclasses import dataclass, field
 
-# kod football-data.co.uk: (nazwa, poziom/tier, id ligi w API-Football)
-LIGI = {
-    "E0": ("Premier League", 1, 39),
-    "E1": ("Championship", 2, 40),
-    "E2": ("League One", 3, 41),
-    "E3": ("League Two", 4, 42),
+
+@dataclass(frozen=True)
+class Kraj:
+    """Kraj z archiwum engsoccerdata (plik data-raw/<id>.csv)."""
+    nazwa: str
+    ligi: dict           # kod football-data.co.uk -> (nazwa ligi, poziom, id ligi w API-Football)
+    od: int              # pierwszy sezon w archiwum (rok rozpoczęcia: 1994 = 1994/95)
+    pelna: bool          # True: archiwum ma całą historię tych rozgrywek (wolno pisać „nigdy”);
+                         # False: wycinek historii – zamiast „nigdy” piszemy „w żadnym z N meczów … (dane od X)”
+    w: dict = field(default_factory=dict)  # poziomy -> dopisek zakresu w smaczkach, np. (1,): "w 1. lidze";
+                                           # () = wszystkie poziomy ligowe kraju są w danych (bez dopisku)
+    od_poziomu: dict = field(default_factory=dict)  # poziom -> pierwszy sezon, gdy inny niż `od`
+    uwagi: str = ""      # opis kompletności danych (na stronę)
+
+
+# Kolejność krajów = kolejność na stronie i w raporcie. Które ligi są włączone: plik ligi.json (PLIK_LIG).
+# Inny kraj z engsoccerdata (data-raw/<kraj>.csv) można dodać tu, z kodami lig football-data.co.uk.
+KRAJE = {
+    "england": Kraj("Anglia", {"E0": ("Premier League", 1, 39), "E1": ("Championship", 2, 40),
+                               "E2": ("League One", 3, 41), "E3": ("League Two", 4, 42)},
+                    od=1888, pelna=True, w={(1, 2, 3, 4): "", (1,): "w Premier League"},
+                    uwagi="wszystkie sezony ligowe od 1888/89 (od 1892 dwie ligi, od 1920 trzy, od 1958 cztery); "
+                          "przerwy to lata wojen"),
+    "spain": Kraj("Hiszpania", {"SP1": ("La Liga", 1, 140)}, od=1928, pelna=True, w={(1,): "w 1. lidze"},
+                  uwagi="La Liga od 1928/29 (przerwa 1936–1939 – wojna domowa)"),
+    "italy": Kraj("Włochy", {"I1": ("Serie A", 1, 135)}, od=1929, pelna=True, w={(1,): "w 1. lidze"},
+                  uwagi="Serie A od 1929/30 (przerwa 1943–1945 – wojna)"),
 }
+KRAJ_DOMYSLNY = "england"
+PLIK_LIG = "ligi.json"  # włączone kraje i poziomy, np. {"england": [1, 2, 3, 4], "spain": [1]}
+WAGA_WYCINKA = 0.5      # seria od pierwszego meczu w danych, gdy dane są tylko wycinkiem historii: waga × 0,5
+
+# Anglia (zgodność wstecz)
+LIGI = KRAJE["england"].ligi
 LIGA_PO_TIER = {tier: nazwa for nazwa, tier, _ in LIGI.values()}
+LIGA_KRAJ = {kod: k for k, kraj in KRAJE.items() for kod in kraj.ligi}  # kod ligi -> kraj
 
 # --- źródła danych ---
-ARCHIWUM_URL = "https://raw.githubusercontent.com/jalapic/engsoccerdata/master/data-raw/england.csv"
-PIERWSZY_SEZON_PO_ARCHIWUM = 2025  # archiwum kończy się 25.05.2025, sezon 2025/26 dopisujemy ze źródła bieżącego
-# Sezony, których brakuje w archiwum (engsoccerdata nie ma całego 2022/23), są wykrywane automatycznie od tego sezonu
-# i dopisywane ze źródła bieżącego (football-data.co.uk ma 4 ligi od 1993/94). Wcześniejsze przerwy to lata wojen.
+ARCHIWUM_BAZA = "https://raw.githubusercontent.com/jalapic/engsoccerdata/master/data-raw"
+ARCHIWUM_URL = f"{ARCHIWUM_BAZA}/england.csv"
+PIERWSZY_SEZON_PO_ARCHIWUM = 2025  # archiwa kończą się w maju–czerwcu 2025, sezon 2025/26 dopisujemy ze źródła bieżącego
+# Sezony, których brakuje w archiwum (np. Anglia 2022/23), są wykrywane automatycznie od tego sezonu
+# i dopisywane ze źródła bieżącego (football-data.co.uk ma te ligi od 1993/94–1997/98). Wcześniejsze przerwy to lata wojen.
 LUKI_OD_SEZONU = 1993
 
 FD_URL = "https://www.football-data.co.uk"  # darmowe CSV, bez klucza

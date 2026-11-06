@@ -1,0 +1,15 @@
+{
+ "_opis": "Hiszpania: nazwy z API-Football i football-data.co.uk -> nazwy w archiwum engsoccerdata (spain.csv).",
+ "aliasy": {
+  "Ath Madrid": "Atletico Madrid",
+  "Espanol": "Espanyol Barcelona",
+  "Deportivo Alavés": "CD Alaves",
+  "RCD Espanyol": "Espanyol Barcelona"
+ },
+ "archiwum": {},
+ "nowe_kluby": [],
+ "uwagi": {
+  "_zasada": "Kluby o innej osobowości prawnej (np. CD Malaga 1904–1992 i Malaga CF, AD Almeria i UD Almeria) zostają osobno, jak dawny i obecny Accrington w Anglii.",
+  "Deportivo Alavés": "pełna nazwa (np. z API-Football); football-data.co.uk: Alaves"
+ }
+}

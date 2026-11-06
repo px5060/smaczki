@@ -1,0 +1,36 @@
+{
+ "_opis": "Anglia: nazwy z API-Football i football-data.co.uk -> nazwy w archiwum engsoccerdata (england.csv).",
+ "aliasy": {
+  "Wolves": "Wolverhampton Wanderers",
+  "Sheffield Utd": "Sheffield United",
+  "Sheffield Wed": "Sheffield Wednesday",
+  "QPR": "Queens Park Rangers",
+  "MK Dons": "Milton Keynes Dons",
+  "Accrington ST": "Accrington",
+  "Accrington Stanley": "Accrington",
+  "Bradford": "Bradford City",
+  "Harrogate Town": "Harrogate Town A.F.C.",
+  "Stevenage": "Stevenage Borough",
+  "Sutton Utd": "Sutton United",
+  "Man United": "Manchester United",
+  "Man City": "Manchester City",
+  "Spurs": "Tottenham Hotspur",
+  "Dagenham & Redbridge": "Dagenham and Redbridge",
+  "Brighton": "Brighton & Hove Albion",
+  "Bournemouth": "AFC Bournemouth",
+  "Newport": "Newport County",
+  "Nott'm Forest": "Nottingham Forest",
+  "Sheffield Weds": "Sheffield Wednesday",
+  "Bristol Rvs": "Bristol Rovers",
+  "Peterboro": "Peterborough United",
+  "Harrogate": "Harrogate Town A.F.C.",
+  "Dag and Red": "Dagenham and Redbridge"
+ },
+ "archiwum": {},
+ "nowe_kluby": [],
+ "uwagi": {
+  "Accrington ST": "obecny klub (od 2006); \"Accrington Stanley\" w archiwum to klub 1921–1962",
+  "Man United": "bez aliasu difflib wskazałby Maidstone United",
+  "Brighton": "nie \"New Brighton\""
+ }
+}
