@@ -1,5 +1,5 @@
-"""Reguły smaczków (brief, pkt 4), pełna karta pary (tryb "mecz") i ranking passy gości."""
-from dataclasses import dataclass
+"""Smaczki: serie 1X2 w pojedynkach pary (u gospodarza i wszystkie mecze), karta pary i ranking."""
+from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
@@ -11,20 +11,25 @@ from . import config as C
 class Fakt:
     waga: float
     tekst: str
+    szansa: float | None = field(default=None, compare=False)  # szansa na taką serię (None = nie dotyczy)
 
 
 def fmt(d):
     return pd.Timestamp(d).strftime("%d.%m.%Y")
 
 
-def mecze(n):
-    """Polska odmiana: 1 mecz, 2 mecze, 5 meczów, 22 mecze, 112 meczów."""
+def odmiana(n, jeden, dwa, piec):
+    """Polska odmiana liczebników: 1 mecz, 2 mecze, 5 meczów, 22 mecze, 112 meczów."""
     n = int(n)
     if n == 1:
-        return "1 mecz"
+        return f"1 {jeden}"
     if n % 10 in (2, 3, 4) and n % 100 not in (12, 13, 14):
-        return f"{n} mecze"
-    return f"{n} meczów"
+        return f"{n} {dwa}"
+    return f"{n} {piec}"
+
+
+def mecze(n):
+    return odmiana(n, "mecz", "mecze", "meczów")
 
 
 def meczach(n):
@@ -59,75 +64,185 @@ def _lata(od, ref):
     return (pd.Timestamp(ref) - pd.Timestamp(od)).days / 365.25
 
 
-def smaczki(hist, h, v, ref=None):
-    """Lista Fakt (najciekawsze pierwsze) dla meczu h (gospodarz) – v (gość).
+# ---------- serie 1X2 ----------
 
-    hist – historia ligowa sprzed meczu; ref – data meczu (do liczenia "od X lat"), domyślnie koniec historii.
+# Bieżące serie (od ostatniego meczu wstecz) z perspektywy wybranej drużyny: W = wygrana, R = remis, P = porażka.
+TYPY = {"W": "W", "R": "R", "P": "P", "nieP": "WR", "nieW": "RP", "nieR": "WP"}
+# Seria ogólna jest pomijana, gdy tak samo długa jest seria szczegółowa w niej zawarta
+# (np. "bez porażki w 6" przy "6 wygranych z rzędu") – z wyjątkiem "nigdy nie wygrał".
+ZAWIERA = {"nieP": "WR", "nieW": "RP", "nieR": "WP"}
+
+_STAWKI = {}
+
+
+def stawki_sezonow(hist):
+    """Odsetek wygranych gospodarzy (1), remisów (X) i wygranych gości (2) w każdym sezonie, 4 ligi razem."""
+    klucz = (id(hist), len(hist))
+    if klucz not in _STAWKI:
+        if len(_STAWKI) > 16:
+            _STAWKI.clear()
+        z = np.sign(hist.hgoal.to_numpy() - hist.vgoal.to_numpy())
+        df = pd.DataFrame({"s": hist.Season.to_numpy(), "1": z > 0, "X": z == 0, "2": z < 0})
+        _STAWKI[klucz] = df.groupby("s")[["1", "X", "2"]].mean()
+    return _STAWKI[klucz]
+
+
+@dataclass
+class Seria:
+    typ: str
+    n: int             # długość serii
+    rzadkosc: float    # -log10 szansy na taką serię przy przeciętnych wynikach sezonów, w których grano
+    pierwszy: object   # pierwszy mecz serii (wiersz historii)
+    przerwal: object   # ostatni mecz przed serią (z innym wynikiem); None = seria obejmuje całą historię
+    wszystkie: int     # liczba meczów w tym układzie
+    ogolna: object = None  # tak samo długa seria ogólna wchłonięta przez tę (np. "bez wygranej gościa")
+
+    @property
+    def nigdy(self):
+        return self.przerwal is None
+
+    @property
+    def od(self):
+        """Data, od której trwa seria (ostatni mecz z innym wynikiem albo pierwszy mecz w historii)."""
+        return (self.pierwszy if self.nigdy else self.przerwal).Date
+
+
+def serie(df, druzyna, stawki):
+    """Bieżące serie wszystkich typów z perspektywy drużyny w meczach df (chronologicznie)."""
+    if not len(df):
+        return {}
+    dom = df.home.to_numpy() == druzyna
+    hg, vg = df.hgoal.to_numpy(), df.vgoal.to_numpy()
+    g, s = np.where(dom, hg, vg), np.where(dom, vg, hg)
+    kod = np.where(g > s, "W", np.where(g == s, "R", "P"))
+    sez = stawki.reindex(df.Season.to_numpy())
+    p1, px, p2 = (sez[k].fillna(C.STAWKI_DOMYSLNE[k]).to_numpy() for k in ("1", "X", "2"))
+    p = {"W": np.where(dom, p1, p2), "R": px, "P": np.where(dom, p2, p1)}
+    n_all = len(kod)
+    out = {}
+    for typ, dozwolone in TYPY.items():
+        n = 0
+        while n < n_all and kod[n_all - 1 - n] in dozwolone:
+            n += 1
+        if n == 0:
+            continue
+        okno = slice(n_all - n, n_all)
+        szansa = np.clip(sum(p[k][okno] for k in dozwolone), 1e-6, 1.0)
+        out[typ] = Seria(typ, n, float(-np.log10(szansa).sum()), df.iloc[n_all - n],
+                         df.iloc[n_all - n - 1] if n < n_all else None, n_all)
+    for typ, szczegolowe in ZAWIERA.items():
+        s_ = out.get(typ)
+        rowna = [out[k] for k in szczegolowe if k in out and out[k].n == s_.n] if s_ else []
+        if rowna and not (s_.nigdy and typ in ("nieP", "nieW")):
+            rowna[0].ogolna = s_
+            del out[typ]
+    return out
+
+
+def _istotna(s, ref):
+    if s.n >= C.MIN_SERIA and s.rzadkosc >= C.MIN_RZADKOSC:
+        return True
+    # "nie wygrał od X r." / "nigdy nie wygrał" – także przy mniejszej rzadkości, jeśli trwa długo
+    if s.typ in ("nieP", "nieW") and s.n >= C.MIN_MECZOW_OD_LAT and _lata(s.od, ref) >= C.MIN_LAT_BEZ_WYGRANEJ:
+        return True
+    return False
+
+
+def _waga(s, ref):
+    return C.WAGA_RZADKOSCI * s.rzadkosc + C.BONUS_ZA_ROK * min(_lata(s.od, ref), C.MAKS_LAT_BONUSU)
+
+
+def remisy(n):
+    return odmiana(n, "remis", "remisy", "remisów")
+
+
+def _wynik(r, z_nazwami=False):
+    return f"{r.home} – {r.visitor} {r.hgoal}:{r.vgoal}" if z_nazwami else f"{r.hgoal}:{r.vgoal}"
+
+
+def _dopisek(s, h, v, h2h=False):
+    """Dla serii, która wchłonęła tak samo długą serię "bez wygranej": od kiedy przegrywający nie wygrał."""
+    g = s.ogolna
+    if g is None or g.nigdy or g.typ == "nieR":
+        return ""
+    r = g.przerwal
+    kto, komu = (v, h) if g.typ == "nieP" else (h, v)
+    if h2h:
+        return f" {kto} nie wygrał z {komu} od {r.Date.year} r. (ostatnio {fmt(r.Date)}, {_wynik(r, True)})."
+    gdzie = f"u {h}" if g.typ == "nieP" else f"u siebie z {v}"
+    return f" {kto} nie wygrał {gdzie} od {r.Date.year} r. (ostatnio {fmt(r.Date)}, {_wynik(r)})."
+
+
+def _tekst_u_gospodarza(s, h, v):
+    """Mecze h (gospodarz) z v na boisku h."""
+    n, rok = s.n, s.pierwszy.Date.year
+    od = (f" – wszystkie mecze od {rok} r." if s.nigdy else f" (od {rok} r.).") + _dopisek(s, h, v)
+    if s.typ == "W":
+        return f"{h} wygrał u siebie z {v} {n} razy z rzędu{od}"
+    if s.typ == "P":
+        return f"{v} wygrał u {h} {n} razy z rzędu{od}"
+    if s.typ == "R":
+        return f"{remisy(n)} z rzędu w meczach u {h} z {v}{od}"
+    if s.nigdy:
+        return {"nieP": f"{v} NIGDY nie wygrał ligowo u {h} ({mecze(n)} od {rok} r.).",
+                "nieW": f"{h} NIGDY nie wygrał ligowo u siebie z {v} ({mecze(n)} od {rok} r.).",
+                "nieR": f"Mecze u {h} z {v} nigdy nie skończyły się remisem ({mecze(n)} od {rok} r.)."}[s.typ]
+    r = s.przerwal
+    ost = f"{fmt(r.Date)}, {_wynik(r)}"
+    return {"nieP": f"{v} nie wygrał u {h} od {r.Date.year} r. ({mecze(n)}) – ostatnio {ost}.",
+            "nieW": f"{h} nie wygrał u siebie z {v} od {r.Date.year} r. ({mecze(n)}) – ostatnio {ost}.",
+            "nieR": f"Bez remisu w meczach u {h} z {v} od {r.Date.year} r. ({mecze(n)}) – ostatni remis {ost}."}[s.typ]
+
+
+def _tekst_h2h(s, h, v):
+    """Wszystkie mecze ligowe obu drużyn (u siebie i na wyjeździe)."""
+    n, rok = s.n, s.pierwszy.Date.year
+    od = (f" – wszystkie mecze od {rok} r." if s.nigdy else f" (od {rok} r.).") + _dopisek(s, h, v, h2h=True)
+    gdzie = "u siebie i na wyjeździe"
+    if s.typ == "W":
+        return f"{h} wygrał z {v} {n} razy z rzędu, {gdzie}{od}"
+    if s.typ == "P":
+        return f"{v} wygrał z {h} {n} razy z rzędu, {gdzie}{od}"
+    if s.typ == "R":
+        return f"{remisy(n)} z rzędu w meczach {h} z {v}, {gdzie}{od}"
+    if s.nigdy:
+        return {"nieP": f"{v} NIGDY nie wygrał z {h} w lidze ({mecze(n)} od {rok} r., {gdzie}).",
+                "nieW": f"{h} NIGDY nie wygrał z {v} w lidze ({mecze(n)} od {rok} r., {gdzie}).",
+                "nieR": f"{h} i {v} nigdy nie zremisowali w lidze ({mecze(n)} od {rok} r.)."}[s.typ]
+    r = s.przerwal
+    ost = f"{fmt(r.Date)}, {_wynik(r, True)}"
+    return {"nieP": f"{v} nie wygrał z {h} od {r.Date.year} r. ({mecze(n)}, {gdzie}) – ostatnio {ost}.",
+            "nieW": f"{h} nie wygrał z {v} od {r.Date.year} r. ({mecze(n)}, {gdzie}) – ostatnio {ost}.",
+            "nieR": f"Bez remisu w meczach {h} z {v} od {r.Date.year} r. ({mecze(n)}, {gdzie}) – "
+                    f"ostatni remis {ost}."}[s.typ]
+
+
+def smaczki(hist, h, v, ref=None):
+    """Lista Fakt (najciekawsze pierwsze) dla meczu h (gospodarz) – v (gość). Tylko pojedynki tej pary.
+
+    Bieżące serie 1, X, 2 oraz "bez wygranej" (każdej ze stron) i "bez remisu" w dwóch układach:
+    mecze u gospodarza z tym rywalem i wszystkie mecze ligowe obu drużyn (u siebie i na wyjeździe).
+    hist – historia ligowa sprzed meczu; ref – data meczu (do liczenia lat), domyślnie koniec historii.
     """
     ref = pd.Timestamp(ref) if ref is not None else hist.Date.max()
+    st = stawki_sezonow(hist)
     out = []
     boisko = hist[(hist.home == h) & (hist.visitor == v)]
     h2h = hist[((hist.home == h) & (hist.visitor == v)) | ((hist.home == v) & (hist.visitor == h))]
 
     if len(h2h) == 0:
-        out.append(Fakt(30, "Pierwszy ligowy mecz tych drużyn w historii."))
+        out.append(Fakt(C.WAGA_PIERWSZEGO_MECZU, "Pierwszy ligowy mecz tych drużyn w historii."))
     else:
         ostatni = h2h.Date.iloc[-1]
         przerwa = _lata(ostatni, ref)
         if przerwa >= C.MIN_PRZERWA_LAT:
             out.append(Fakt(przerwa, f"Pierwszy ligowy mecz tych drużyn od {lat(przerwa)} (ostatni: {fmt(ostatni)})."))
 
-    if len(boisko):
-        w = wyniki(boisko, h)  # z perspektywy gospodarza: P = wygrana gościa
-        n = len(w)
-
-        # --- gość u tego gospodarza ---
-        wyg_g = boisko[boisko.vgoal > boisko.hgoal]
-        if len(wyg_g) == 0:
-            if n >= C.MIN_MECZOW_GOSC_NIGDY:
-                out.append(Fakt(40 + n, f"{v} NIGDY nie wygrał ligowo u {h} ({mecze(n)} od {boisko.Date.iloc[0].year} r.)."))
-        else:
-            r = wyg_g.iloc[-1]
-            lata_ = _lata(r.Date, ref)
-            ile = int((boisko.Date > r.Date).sum())
-            if lata_ >= C.MIN_LAT_BEZ_WYGRANEJ and ile >= C.MIN_MECZOW_OD_WYGRANEJ:
-                out.append(Fakt(lata_, f"{v} nie wygrał u {h} od {lat(lata_)} – ostatnio {fmt(r.Date)} "
-                                       f"({r.hgoal}:{r.vgoal}); od tego czasu {mecze(ile)} bez wygranej."))
-
-        bez_por = seria(w, lambda x: x != "W")
-        if bez_por >= C.MIN_SERIA_GOSC_BEZ_PORAZKI:
-            out.append(Fakt(4 * bez_por, f"{v} bez porażki u {h} w {bez_por} ostatnich meczach ligowych."))
-        wyg_z_rzedu = seria(w, lambda x: x == "P")
-        if wyg_z_rzedu >= C.MIN_SERIA_GOSC_WYGRANE:
-            out.append(Fakt(6 * wyg_z_rzedu, f"{v} wygrał u {h} {wyg_z_rzedu} razy z rzędu."))
-
-        # --- gospodarz u siebie z tym rywalem ---
-        wyg_h = boisko[boisko.hgoal > boisko.vgoal]
-        if len(wyg_h) == 0:
-            if n >= C.MIN_MECZOW_GOSP_NIGDY:
-                out.append(Fakt(35 + n, f"{h} NIGDY nie wygrał ligowo u siebie z {v} ({mecze(n)})."))
-        else:
-            od = wyg_h.Date.iloc[-1]
-            lata_ = _lata(od, ref)
-            ile = int((boisko.Date > od).sum())
-            if ile >= C.MIN_MECZOW_GOSP_BEZ_WYGRANEJ or (lata_ >= C.MIN_LAT_BEZ_WYGRANEJ
-                                                         and ile >= C.MIN_MECZOW_OD_WYGRANEJ):
-                kiedy = f"od {lat(lata_)} – ostatnio {fmt(od)}" if lata_ >= C.MIN_LAT_BEZ_WYGRANEJ else f"od {fmt(od)}"
-                out.append(Fakt(max(lata_, 4 * ile), f"{h} nie wygrał u siebie z {v} {kiedy} ({mecze(ile)})."))
-        wyg_h_z_rzedu = seria(w, lambda x: x == "W")
-        if wyg_h_z_rzedu >= C.MIN_SERIA_GOSP_WYGRANE:
-            out.append(Fakt(3 * wyg_h_z_rzedu, f"{h} wygrał u siebie z {v} {wyg_h_z_rzedu} razy z rzędu."))
-
-    # --- bieżąca forma (wszyscy rywale) ---
-    for druz, kol, gdzie in [(h, "home", "u siebie"), (v, "visitor", "na wyjeździe")]:
-        m = hist[hist[kol] == druz]
-        if not len(m):
-            continue
-        w = wyniki(m, druz)
-        for warunek, opis in [(lambda x: x != "P", "bez porażki"), (lambda x: x != "W", "bez wygranej")]:
-            n = seria(w, warunek)
-            if n >= C.MIN_FORMA:
-                out.append(Fakt(1.5 * n, f"{druz} {opis} {gdzie} w {n} meczach ligowych z rzędu."))
+    # wszystkie istotne serie pary: u gospodarza i we wszystkich meczach (u siebie i na wyjeździe)
+    for df, tekst in [(boisko, _tekst_u_gospodarza), (h2h, _tekst_h2h)]:
+        for s in serie(df, h, st).values():
+            if _istotna(s, ref):
+                out.append(Fakt(_waga(s, ref), tekst(s, h, v), 10 ** -s.rzadkosc))
 
     out.sort(reverse=True)
     return out
@@ -138,13 +253,11 @@ def ostatni_u_gospodarza(hist, h, v):
     return boisko.iloc[-1] if len(boisko) else None
 
 
-def wyniki_pary(hist, h, v, forma=10):
-    """Mecze, na których opierają się smaczki (od najnowszego): u gospodarza, rewanże, forma obu drużyn."""
+def wyniki_pary(hist, h, v):
+    """Mecze pary, na których opierają się smaczki (od najnowszego): u gospodarza i rewanże."""
     return {
         "u_gosp": hist[(hist.home == h) & (hist.visitor == v)].iloc[::-1],
         "rewanze": hist[(hist.home == v) & (hist.visitor == h)].iloc[::-1],
-        "forma_h": hist[hist.home == h].tail(forma).iloc[::-1],
-        "forma_v": hist[hist.visitor == v].tail(forma).iloc[::-1],
     }
 
 

@@ -47,8 +47,9 @@ class TestArchiwum(unittest.TestCase):
 
     def test_man_utd_luton(self):
         t = teksty(smaczki(self.hist, "Manchester United", "Luton Town"))
-        self.assertIn("ostatnio 18.09.1897", t)
-        self.assertIn("19 meczów bez wygranej", t)
+        self.assertIn("Manchester United wygrał u siebie z Luton Town 19 razy z rzędu", t)
+        self.assertIn("Luton Town nie wygrał u Manchester United od 1897 r. (ostatnio 18.09.1897, 1:2)", t)
+        self.assertIn("Mecze u Manchester United z Luton Town nigdy nie skończyły się remisem (20 meczów", t)
 
     def test_derby_lincoln(self):
         t = teksty(smaczki(self.hist, "Derby County", "Lincoln City"))
@@ -58,7 +59,7 @@ class TestArchiwum(unittest.TestCase):
     def test_wolves_sheffield(self):
         h, v = self.nazwy("Wolves"), self.nazwy("Sheffield Utd")
         self.assertEqual((h, v), ("Wolverhampton Wanderers", "Sheffield United"))
-        self.assertIn("Sheffield United nie wygrał u Wolverhampton Wanderers od 22 lat – ostatnio 05.10.2002",
+        self.assertIn("Sheffield United nie wygrał u Wolverhampton Wanderers od 2002 r. (9 meczów) – ostatnio 05.10.2002",
                       teksty(smaczki(self.hist, h, v)))
 
     def test_luton_portsmouth(self):
@@ -70,7 +71,8 @@ class TestArchiwum(unittest.TestCase):
         h, v = self.nazwy("Bradford"), self.nazwy("Accrington ST")
         self.assertEqual((h, v), ("Bradford City", "Accrington"))
         self.assertEqual(self.nazwy("Accrington Stanley"), "Accrington")  # nie dawny klub 1921–1962
-        self.assertIn("ostatnio 02.10.2007", teksty(smaczki(self.hist, h, v)))
+        self.assertIn("Accrington nie wygrał u Bradford City od 2007 r. (8 meczów) – ostatnio 02.10.2007",
+                      teksty(smaczki(self.hist, h, v)))
 
     def test_pierwszy_mecz(self):
         f = smaczki(self.hist, "Arsenal", "Bromley")

@@ -3,6 +3,8 @@ import datetime as dt
 import html
 from dataclasses import dataclass
 
+import pandas as pd
+
 from . import config as C
 from .rules import fmt, mecze
 
@@ -193,25 +195,25 @@ def _bilans(df, h, v):
             f'wygrane {e(h)}: {z.count("1")} · remisy: {z.count("X")} · wygrane {e(v)}: {z.count("2")}</p>')
 
 
-def _tabela_formy(df, druzyna, u_siebie):
-    """Ostatnie mecze drużyny u siebie / na wyjeździe: data, rywal, wynik, W/R/P z jej perspektywy."""
+def _tabela_pary(df, h):
+    """Wszystkie mecze pary (u siebie i na wyjeździe): data, gdzie, wynik, W/R/P z perspektywy h."""
     w = []
     for r in df.itertuples():
-        g, s = (r.hgoal, r.vgoal) if u_siebie else (r.vgoal, r.hgoal)
+        dom = r.home == h
+        g, s = (r.hgoal, r.vgoal) if dom else (r.vgoal, r.hgoal)
         wyn = "W" if g > s else ("R" if g == s else "P")
-        rywal = r.visitor if u_siebie else r.home
         w.append(f'<tr class="{"g" if wyn == "P" else ("x" if wyn == "R" else "")}"><td>{_data_kom(r)}</td>'
-                 f'<td>{e(rywal)}</td><td class="c">{r.hgoal}:{r.vgoal}</td><td class="c">{wyn}</td></tr>')
-    return ('<table><thead><tr><th>Data</th><th>Rywal</th><th>Wynik</th><th>W/R/P</th></tr></thead>'
+                 f'<td>{"u siebie" if dom else "wyjazd"}</td><td class="c">{r.hgoal}:{r.vgoal}</td>'
+                 f'<td class="c">{wyn}</td><td class="c">{r.tier}</td></tr>')
+    return ('<table><thead><tr><th>Data</th><th>Gdzie</th><th>Wynik</th><th>W/R/P</th><th>Poz.</th></tr></thead>'
             f'<tbody>{"".join(w)}</tbody></table>' + _legenda(df))
 
 
 def _wyniki_html(p):
-    """Rozwijany podgląd meczów, z których wynikają smaczki."""
+    """Rozwijany podgląd meczów pary, z których wynikają smaczki."""
     if not p.wyniki:
         return ""
-    w = p.wyniki
-    u, rew, fh, fv = w["u_gosp"], w["rewanze"], w["forma_h"], w["forma_v"]
+    u, rew = p.wyniki["u_gosp"], p.wyniki["rewanze"]
     czesci = []
     if len(u):
         tytul = f"Pokaż wyniki: {mecze(len(u))} u {p.h}"
@@ -222,13 +224,13 @@ def _wyniki_html(p):
     if len(rew):
         czesci.append(f"<details><summary>Rewanże: {mecze(len(rew))} u {e(p.v)}</summary>"
                       f"{_bilans(rew, p.v, p.h)}{_tabela_u_gospodarza(rew)}</details>")
-    if len(fh) or len(fv):
-        forma = ""
-        if len(fh):
-            forma += f"<h3>{e(p.h)} u siebie – ostatnie {len(fh)}</h3>{_tabela_formy(fh, p.h, True)}"
-        if len(fv):
-            forma += f"<h3>{e(p.v)} na wyjeździe – ostatnie {len(fv)}</h3>{_tabela_formy(fv, p.v, False)}"
-        czesci.append(f"<details><summary>Forma: {e(p.h)} u siebie, {e(p.v)} na wyjeździe</summary>{forma}</details>")
+    if len(rew) and len(u):
+        razem = pd.concat([u, rew]).sort_values("Date", ascending=False, kind="stable")
+        z = [("W" if (r.hgoal > r.vgoal) == (r.home == p.h) and r.hgoal != r.vgoal else
+              ("R" if r.hgoal == r.vgoal else "P")) for r in razem.itertuples()]
+        czesci.append(f"<details><summary>Wszystkie mecze pary: {mecze(len(razem))}, u siebie i na wyjeździe</summary>"
+                      f'<p class="podsum">{e(p.h)} – wygrane: {z.count("W")} · remisy: {z.count("R")} · '
+                      f'porażki: {z.count("P")} (W/R/P z perspektywy {e(p.h)})</p>{_tabela_pary(razem, p.h)}</details>')
     return f'<details class="wyniki"><summary>{e(tytul)}</summary>{"".join(czesci)}</details>'
 
 
@@ -249,20 +251,24 @@ def _tys(n):
     return f"{n:,}".replace(",", "\u00a0")
 
 
+def _mecze_tys(n):
+    return f"{_tys(n)} {mecze(n).split(' ', 1)[1]}"
+
+
 def _dane_html(info):
     """Rozwijana sekcja: skąd są dane i jak są kompletne."""
     pobrano = f" (pobrano {info['pobrano']:%d.%m.%Y %H:%M})" if info.get("pobrano") else ""
     li = []
     if info.get("zrodlo_biezace"):
         li.append(f"<b>Najbliższe mecze:</b> {e(info['zrodlo_terminarza'])}{pobrano}. Godziny w czasie polskim.")
-    li.append(f"<b>Historia:</b> {_tys(info['liczba'])} meczów ligowych 4 najwyższych poziomów, "
+    li.append(f"<b>Historia:</b> {_mecze_tys(info['liczba'])} ligowych z 4 najwyższych poziomów, "
               f"od {fmt(info['pierwszy'])} do {fmt(info['koniec'])}:")
     for nazwa, (n, od, do, sezony) in info["zrodla"].items():
         if nazwa == "archiwum":
-            li.append(f"archiwum engsoccerdata (github.com/jalapic/engsoccerdata): {_tys(n)} meczów, "
+            li.append(f"archiwum engsoccerdata (github.com/jalapic/engsoccerdata): {_mecze_tys(n)}, "
                       f"{fmt(od)} – {fmt(do)}.")
         else:
-            li.append(f"{e(nazwa)}: {_tys(n)} meczów, sezony {_sezony(sezony)} (ostatni wynik {fmt(do)}).")
+            li.append(f"{e(nazwa)}: {_mecze_tys(n)}, sezony {_sezony(sezony)} (ostatni wynik {fmt(do)}).")
     if info.get("uzupelnione"):
         li.append(f"Archiwum nie ma sezonu {_sezony(info['uzupelnione'])} – uzupełniony z {e(info['zrodlo_biezace'])}.")
     li.append("Kompletność: archiwum ma wszystkie sezony ligowe od 1888/89 (od 1892 dwie ligi, od 1920 trzy, "

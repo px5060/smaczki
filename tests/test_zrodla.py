@@ -199,8 +199,8 @@ class TestCLI(Tmp):
         self.assertTrue(os.path.exists(raport))
 
     def test_dzis_strona_i_powiadomienie(self):
-        wyniki = pd.DataFrame([{"Date": pd.Timestamp("2026-09-01"), "Season": 2026, "home": "Wolves",
-                                "visitor": "Luton", "hgoal": 1, "vgoal": 0, "tier": 2}])
+        wyniki = pd.DataFrame([{"Date": pd.Timestamp("2026-09-01"), "Season": 2026, "home": "Sheffield Utd",
+                                "visitor": "Wolves", "hgoal": 1, "vgoal": 1, "tier": 2}])
         term = [dl.Mecz(dt.datetime(2026, 11, 6, 20, 45), "Championship", "Luton", "Sheffield Utd"),
                 dl.Mecz(dt.datetime(2026, 11, 7, 16, 0), "Championship", "Wolves", "Sheffield Utd")]
         html = os.path.join(self.tmp, "site", "index.html")
@@ -222,6 +222,47 @@ class TestCLI(Tmp):
         req = urlopen.call_args[0][0]
         self.assertIn("ntfy.sh/test-temat?title=Smaczki", req.full_url)
         self.assertIn("Luton Town – Sheffield United", req.data.decode("utf-8"))
+
+
+def para(wyniki):
+    """Historia pary A–B: lista (rok, gospodarz, gole gosp., gole gościa)."""
+    return pd.DataFrame([{"Date": pd.Timestamp(f"{rok}-{'10' if g == 'A' else '03'}-01"), "Season": rok,
+                          "home": g, "visitor": "B" if g == "A" else "A", "hgoal": hg, "vgoal": vg, "tier": 1,
+                          "zrodlo": "archiwum"} for rok, g, hg, vg in wyniki]) \
+        .sort_values("Date").reset_index(drop=True)
+
+
+class TestSeriePary(unittest.TestCase):
+    def setUp(self):
+        # sztuczna historia ma same mecze A–B; do kolejności bierzemy typowe odsetki 1X2 z config
+        typowe = mock.patch("smaczki.rules.stawki_sezonow",
+                            return_value=pd.DataFrame(columns=["1", "X", "2"], dtype=float))
+        typowe.start()
+        self.addCleanup(typowe.stop)
+
+    def test_wszystkie_serie_obu_druzyn_i_1x2(self):
+        from smaczki.rules import smaczki
+        w = [(2000, "A", 0, 1)]                                     # ostatnia wygrana B u A: 2000
+        w += [(r, "A", 2, 0) for r in range(2001, 2006)]            # potem 5 wygranych A u siebie
+        w += [(r, "A", 1, 1) for r in range(2006, 2012)]            # i 6 remisów z rzędu u A
+        w += [(r, "B", 0, 3) for r in range(2001, 2006)]            # A wygrywa też u B
+        w += [(r, "B", 2, 2) for r in range(2006, 2013)]            # 7 remisów u B
+        t = "\n".join(f.tekst for f in smaczki(para(w), "A", "B", pd.Timestamp("2026-11-07")))
+        self.assertIn("B nie wygrał u A od 2000 r. (11 meczów) – ostatnio 01.10.2000, 0:1.", t)
+        self.assertIn("6 remisów z rzędu w meczach u A z B (od 2006 r.).", t)
+        self.assertIn("13 remisów z rzędu w meczach A z B, u siebie i na wyjeździe (od 2006 r.).", t)
+        self.assertIn("A nie wygrał u siebie z B od 2005 r. (ostatnio 01.10.2005, 2:0)", t)  # perspektywa gospodarza
+        self.assertIn("B nie wygrał z A od 2000 r. (23 mecze, u siebie i na wyjeździe)", t)
+        self.assertNotIn("na wyjeździe w", t)  # bez formy z wszystkimi rywalami
+
+    def test_gosc_wygrywa_seria_2(self):
+        from smaczki.rules import smaczki
+        w = [(1990, "A", 3, 0)] + [(r, "A", 0, 1) for r in range(1991, 1997)] + \
+            [(r, "B", 1, 0) for r in range(1991, 1997)]
+        t = "\n".join(f.tekst for f in smaczki(para(w), "A", "B", pd.Timestamp("2026-11-07")))
+        self.assertIn("B wygrał u A 6 razy z rzędu (od 1991 r.). A nie wygrał u siebie z B od 1990 r. "
+                      "(ostatnio 01.10.1990, 3:0).", t)
+        self.assertIn("B wygrał z A 12 razy z rzędu, u siebie i na wyjeździe", t)
 
 
 class TestRaport(unittest.TestCase):

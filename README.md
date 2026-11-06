@@ -49,8 +49,8 @@ Zakończone sezony są zapisywane w `dane/cache/` i nie są pobierane ponownie; 
 ### Podgląd wyników
 
 Na stronie każdy mecz ma przycisk **„Pokaż wyniki”**: wszystkie mecze ligowe u gospodarza z tym rywalem (od najnowszego,
-z bilansem; wygrane gości wyróżnione), a niżej rozwijane **rewanże** i **forma** (ostatnie 10 meczów gospodarza u siebie
-i gościa na wyjeździe). Wyniki spoza archiwum engsoccerdata są oznaczone „°”. Na dole strony sekcja
+z bilansem; wygrane gości wyróżnione), a niżej rozwijane **rewanże** (mecze u gościa) i **wszystkie mecze pary**
+(u siebie i na wyjeździe, W/R/P z perspektywy gospodarza). Wyniki spoza archiwum engsoccerdata są oznaczone „°”. Na dole strony sekcja
 **„Skąd dane i czy są kompletne”** pokazuje, ile meczów pochodzi z którego źródła. W konsoli to samo daje
 `python -m smaczki mecz "Derby" "Bolton" --wyniki`.
 
@@ -102,22 +102,33 @@ Opcje wspólne: `--zrodlo auto|fd|api|brak`, `--dane FOLDER` (domyślnie `dane`)
 
 ## Reguły smaczków
 
-Liczone na historii ligowej sprzed dnia meczu. Każdy fakt ma wagę; przy meczu widać maks. 4 fakty, od najciekawszego.
+Liczone są **tylko pojedynki tych dwóch drużyn** (mecze ligowe sprzed dnia meczu), bez formy z innymi rywalami.
+Dla każdej pary aplikacja sprawdza bieżące serie (od ostatniego meczu wstecz) wszystkich wyników 1X2,
+z perspektywy gospodarza i gościa, w dwóch układach:
 
-| Fakt | Warunek | Waga |
+| Seria | Mecze u gospodarza z tym rywalem | Wszystkie mecze pary (u siebie i na wyjeździe) |
 |---|---|---|
-| Pierwszy ligowy mecz drużyn w historii | brak meczów H2H | 30 |
-| Pierwszy mecz od wielu lat | ostatni H2H ≥ 10 lat temu | liczba lat |
-| Gość nigdy nie wygrał u gospodarza | 0 wygranych, ≥ 5 meczów | 40 + liczba meczów |
-| Gość nie wygrał u gospodarza od X lat | ≥ 10 lat i ≥ 3 mecze od ostatniej wygranej | liczba lat |
-| Gość bez porażki u gospodarza | seria ≥ 4 | 4 × seria |
-| Gość wygrał u gospodarza z rzędu | seria ≥ 3 | 6 × seria |
-| Gospodarz nigdy nie wygrał u siebie z gościem | 0 wygranych, ≥ 4 mecze | 35 + liczba meczów |
-| Gospodarz nie wygrał u siebie z gościem | ≥ 4 mecze bez wygranej albo ≥ 10 lat i ≥ 3 mecze | max(lata, 4 × mecze) |
-| Gospodarz wygrał u siebie z rzędu | seria ≥ 5 | 3 × seria |
-| Forma gospodarza u siebie / gościa na wyjeździe | seria bez porażki albo bez wygranej ≥ 8 | 1,5 × seria |
+| 1 / wygrane gospodarza z rzędu | „Derby County wygrał u siebie z Bolton Wanderers 6 razy z rzędu (od 2015 r.).” | „X wygrał z Y 8 razy z rzędu, u siebie i na wyjeździe (od 2014 r.).” |
+| X / remisy z rzędu | „6 remisów z rzędu w meczach u West Bromwich Albion z Millwall (od 2019 r.).” | „5 remisów z rzędu w meczach Blackburn Rovers z West Ham United, u siebie i na wyjeździe (od 2009 r.).” |
+| 2 / wygrane gościa z rzędu | „Y wygrał u X 6 razy z rzędu (od 1991 r.).” | „Y wygrał z X 12 razy z rzędu, u siebie i na wyjeździe.” |
+| gość nie wygrał (1X) | „Bolton Wanderers nie wygrał u Derby County od 1981 r. (16 meczów) – ostatnio 23.09.1981, 0:2.” | „Swansea City nie wygrał z Birmingham City od 2020 r. (10 meczów, u siebie i na wyjeździe) – ostatnio …” |
+| gospodarz nie wygrał (X2) | „Blackburn Rovers nie wygrał u siebie z West Ham United od 2005 r. (5 meczów) – ostatnio 10.12.2005, 3:2.” | „Cardiff City nie wygrał z Burnley od 2012 r. (9 meczów, u siebie i na wyjeździe) – …” |
+| bez remisu (12) | „Bez remisu w meczach u Fulham z Newcastle United od 1984 r. (19 meczów) – ostatni remis 03.03.1984, 2:2.” | „Bez remisu w meczach X z Y od … (… meczów, u siebie i na wyjeździe)” |
 
-Wszystkie progi są w `smaczki/config.py`.
+Gdy seria obejmuje całą historię: „Fulham NIGDY nie wygrał ligowo u Arsenal (31 meczów od 1914 r.)”,
+„Mecze u X z Y nigdy nie skończyły się remisem”. Do tego „pierwszy ligowy mecz tych drużyn w historii” i
+„pierwszy mecz od X lat”.
+
+**Pokazywane są wszystkie serie pary**, które spełniają próg (bez limitu na mecz):
+- co najmniej 4 mecze i seria rzadsza niż ok. 1 na 20, albo
+- „nie wygrał” trwające co najmniej 10 lat i co najmniej 5 meczów.
+
+Dwie serie złożone z dokładnie tych samych meczów są łączone w jedno zdanie, np. „Manchester United wygrał u siebie z Luton
+Town 19 razy z rzędu (od 1899 r.). Luton Town nie wygrał u Manchester United od 1897 r. (ostatnio 18.09.1897, 1:2).”
+
+**Kolejność** (nie jest nigdzie wyświetlana): im mniej prawdopodobna seria przy typowych wynikach z sezonów, w których
+grano te mecze, i im dłużej trwa, tym wyżej. Dzięki temu 16 meczów bez wygranej stoi wyżej niż 4, a seria remisów
+porównuje się uczciwie z serią wygranych. ★ = waga ≥ 25 (`PROG_DNIA`). Wszystkie progi są w `smaczki/config.py`.
 
 ## Nazwy drużyn
 
