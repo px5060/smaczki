@@ -39,8 +39,8 @@ BONUS_ZA_ROK = 0.2             # +1 za każde 5 lat trwania serii
 MAKS_LAT_BONUSU = 100
 MIN_LAT_BEZ_WYGRANEJ = 10      # "nie wygrał od X r." / "nigdy nie wygrał" pokazujemy też przy mniejszej rzadkości,
 MIN_MECZOW_OD_LAT = 5          #   jeśli trwa co najmniej 10 lat i obejmuje co najmniej 5 meczów
-MIN_PRZERWA_LAT = 10           # "pierwszy mecz od X lat" (waga = liczba lat)
-WAGA_PIERWSZEGO_MECZU = 30     # "pierwszy mecz w historii"
+WAGA_PIERWSZEGO_MECZU = 0      # "pierwszy mecz w historii" – tylko informacja (bez serii, bez ★)
+GOLE_OSTATNIE = 10             # podsumowanie goli pary: ile ostatnich meczów
 MAKS_FAKTOW = None             # ile faktów pokazać przy meczu (None = wszystkie serie pary)
 MIN_SERIA_WYNIKU = 3           # "ten sam dokładny wynik" – od 3 meczów z rzędu
 STAWKI_DOMYSLNE = {"1": 0.45, "X": 0.26, "2": 0.29, "O": 0.49, "B": 0.50}  # gdy brak danych sezonu

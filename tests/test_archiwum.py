@@ -76,7 +76,13 @@ class TestArchiwum(unittest.TestCase):
 
     def test_pierwszy_mecz(self):
         f = smaczki(self.hist, "Arsenal", "Bromley")
-        self.assertEqual((f[0].waga, f[0].tekst), (30, "Pierwszy ligowy mecz tych drużyn w historii."))
+        self.assertEqual((f[0].waga, f[0].tekst), (0, "Pierwszy ligowy mecz tych drużyn w historii."))
+
+    def test_bez_faktu_pierwszy_mecz_od_lat(self):
+        import pandas as pd
+        t = teksty(smaczki(self.hist, "Everton", "Coventry City", pd.Timestamp("2026-11-06")))
+        self.assertNotIn("od 25 lat", t)
+        self.assertNotIn("Pierwszy ligowy mecz tych drużyn od", t)
 
     def test_aliasy_wskazuja_kluby_z_archiwum(self):
         brak = sorted(set(ALIASY.values()) - set(self.nazwy.ostatni_mecz))

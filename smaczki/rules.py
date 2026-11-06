@@ -31,6 +31,7 @@ class TypWspolny:
     rynek: str          # "1X2", "gole" (over/under 2.5), "BTTS", "wynik" (dokładny wynik)
     typ: str | None
     skladowe: list      # typy z poszczególnych serii, np. ["X", "X2", "1X"]
+    sila: float = 0.0   # waga najmocniejszej serii za tym typem
 
     @property
     def klucz(self):
@@ -41,18 +42,45 @@ def typy_wspolne(fakty):
     """Typ meczu na każdym rynku, na którym są serie. 1X2: część wspólna wyników dopuszczanych przez serie
     (np. X ∩ X2 ∩ 1X = X); pozostałe rynki: typ, jeśli wszystkie serie wskazują to samo."""
     out = []
-    z1x2 = [f.typ for f in fakty if f.typ in TYPY_1X2]
-    if z1x2:
+    f1x2 = [f for f in fakty if f.typ in TYPY_1X2]
+    if f1x2:
         wspolne = set("1X2")
-        for t in z1x2:
-            wspolne &= set(t)
-        out.append(TypWspolny("1X2", "".join(c for c in "1X2" if c in wspolne) or None, z1x2))
+        for f in f1x2:
+            wspolne &= set(f.typ)
+        out.append(TypWspolny("1X2", "".join(c for c in "1X2" if c in wspolne) or None, [f.typ for f in f1x2],
+                              max(f.waga for f in f1x2)))
     for rynek, nalezy in [("gole", lambda t: t in ("O2.5", "U2.5")), ("BTTS", lambda t: t in ("BTTS", "noBTTS")),
                           ("wynik", lambda t: t.startswith("S"))]:
-        z = [f.typ for f in fakty if f.typ and nalezy(f.typ)]
-        if z:
-            out.append(TypWspolny(rynek, z[0] if len(set(z)) == 1 else None, z))
+        ff = [f for f in fakty if f.typ and nalezy(f.typ)]
+        if ff:
+            z = [f.typ for f in ff]
+            out.append(TypWspolny(rynek, z[0] if len(set(z)) == 1 else None, z, max(f.waga for f in ff)))
     return out
+
+
+def typ_ostateczny(fakty):
+    """Jeden typ na mecz: rynek (1X2, gole, obie strzelą) z najmocniejszą serią; dokładny wynik tylko,
+    gdy nie ma innych. None, gdy brak serii albo serie się wykluczają."""
+    kolejnosc = {"1X2": 0, "gole": 1, "BTTS": 2, "wynik": 3}
+    kandydaci = [t for t in typy_wspolne(fakty) if t.typ]
+    glowne = [t for t in kandydaci if t.rynek != "wynik"] or kandydaci
+    if not glowne:
+        return None
+    return max(glowne, key=lambda t: (t.sila, -kolejnosc[t.rynek]))
+
+
+def gole_pary(df, ostatnie=10):
+    """Gole w meczach df (chronologicznie): ostatnie N meczów – ile powyżej i poniżej 2.5 bramki, średnia
+    i bieżąca seria powyżej/poniżej 2.5. None, gdy brak meczów."""
+    if not len(df):
+        return None
+    suma = (df.hgoal + df.vgoal).to_numpy()
+    over = suma >= 3
+    seria = _od_konca(over if over[-1] else ~over)
+    ost = suma[-ostatnie:]
+    return {"meczow": int(len(ost)), "powyzej": int((ost >= 3).sum()), "ponizej": int((ost <= 2).sum()),
+            "srednio": float(ost.mean()), "seria": int(seria), "seria_powyzej": bool(over[-1]),
+            "wszystkich": int(len(suma)), "srednio_wszystkie": float(suma.mean())}
 
 
 def typ_serii(s):
@@ -337,7 +365,7 @@ def _tekst_bramek(s, h, v, h2h=False):
         else:
             wynik = f"{a}:{b} dla {h}" if a > b else f"{b}:{a} dla {v}"
         return f"Ten sam wynik {wynik} w {meczach(n)} z rzędu {gdzie}{od}"
-    co = {"O": "Co najmniej 3 gole (over 2.5)", "U": "Najwyżej 2 gole (under 2.5)",
+    co = {"O": "Powyżej 2.5 bramki (over)", "U": "Poniżej 2.5 bramki (under)",
           "B": "Obie drużyny strzelały", "nB": "Co najmniej jedna drużyna bez gola (BTTS nie)"}[s.typ]
     return f"{co} w {meczach(n)} z rzędu {gdzie}{od}"
 
@@ -361,11 +389,6 @@ def fakty_pary(h2h, h, v, ref, st):
 
     if len(h2h) == 0:
         out.append(Fakt(C.WAGA_PIERWSZEGO_MECZU, "Pierwszy ligowy mecz tych drużyn w historii."))
-    else:
-        ostatni = h2h.Date.iloc[-1]
-        przerwa = _lata(ostatni, ref)
-        if przerwa >= C.MIN_PRZERWA_LAT:
-            out.append(Fakt(przerwa, f"Pierwszy ligowy mecz tych drużyn od {lat(przerwa)} (ostatni: {fmt(ostatni)})."))
 
     # wszystkie istotne serie pary: u gospodarza i we wszystkich meczach (u siebie i na wyjeździe)
     for df, tekst, uklad in [(boisko, _tekst_u_gospodarza, "u"), (h2h, _tekst_h2h, "h2h")]:

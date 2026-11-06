@@ -201,13 +201,17 @@ class TestCLI(Tmp):
 
     def test_dzis_strona_i_powiadomienie(self):
         wyniki = pd.DataFrame([{"Date": pd.Timestamp("2026-09-01"), "Season": 2026, "home": "Sheffield Utd",
-                                "visitor": "Wolves", "hgoal": 1, "vgoal": 1, "tier": 2}])
+                                "visitor": "Wolves", "hgoal": 1, "vgoal": 1, "tier": 2}] +
+                              [{"Date": pd.Timestamp(f"{r}-10-01"), "Season": r, "home": "Luton",
+                                "visitor": "Sheffield Utd", "hgoal": 3, "vgoal": 0, "tier": 2} for r in range(2015, 2023)])
         term = [dl.Mecz(dt.datetime(2026, 11, 6, 20, 45), "Championship", "Luton", "Sheffield Utd"),
                 dl.Mecz(dt.datetime(2026, 11, 7, 16, 0), "Championship", "Wolves", "Sheffield Utd")]
         html = os.path.join(self.tmp, "site", "index.html")
         argv = ["dzis", "--dzis", "2026-11-06", "--zrodlo", "fd", "--dane", self.tmp, "--html", html,
                 "--raport", os.path.join(self.tmp, "r.txt"), "--ntfy", "test-temat"]
+        typowe = pd.DataFrame(columns=["1", "X", "2", "O", "B"], dtype=float)  # typowe odsetki z config
         with mock.patch.object(dl, "fd_dane", return_value=(wyniki, term)), \
+                mock.patch("smaczki.rules.stawki_sezonow", return_value=typowe), \
                 mock.patch("smaczki.cli.urllib.request.urlopen") as urlopen:
             self.uruchom(*argv)
             self.uruchom(*argv)  # drugie uruchomienie tego samego dnia – bez drugiego powiadomienia
@@ -262,14 +266,14 @@ class TestSeriePary(unittest.TestCase):
             [(r, "B", 0, 0) for r in range(2001, 2009)]
         f = smaczki(para(w), "A", "B", pd.Timestamp("2026-11-07"))
         t = "\n".join(x.tekst for x in f)
-        self.assertIn("Najwyżej 2 gole (under 2.5) w 8 meczach z rzędu u A z B (od 2001 r.).", t)
-        self.assertIn("Najwyżej 2 gole (under 2.5) w 16 meczach z rzędu między A a B "
+        self.assertIn("Poniżej 2.5 bramki (under) w 8 meczach z rzędu u A z B (od 2001 r.).", t)
+        self.assertIn("Poniżej 2.5 bramki (under) w 16 meczach z rzędu między A a B "
                       "(u siebie i na wyjeździe, od 2001 r.).", t)
         self.assertIn("Ten sam wynik 1:0 w 8 meczach z rzędu u A z B (od 2001 r.).", t)
         self.assertIn("Co najmniej jedna drużyna bez gola (BTTS nie) w 16 meczach z rzędu między A a B", t)
         typy = {x.tekst.split(" w ")[0]: x.typ for x in f}
         self.assertEqual(typy["Ten sam wynik 1:0"], "S1:0")
-        self.assertEqual(typy["Najwyżej 2 gole (under 2.5)"], "U2.5")
+        self.assertEqual(typy["Poniżej 2.5 bramki (under)"], "U2.5")
 
     def test_gosc_wygrywa_seria_2(self):
         from smaczki.rules import smaczki
@@ -318,7 +322,7 @@ class TestTypy(unittest.TestCase):
         self.assertEqual(typ_tekst(TypWspolny("1X2", None, ["1", "X2"]), p, skut),
                          "1X2: serie się wykluczają (1, X2) – bez typu")
         self.assertEqual(typ_tekst(TypWspolny("gole", "U2.5", ["U2.5", "U2.5"]), p, skut),
-                         "Gole: Under 2.5 (najwyżej 2 gole) – zgodny z 2 seriami · kurs ok. 1.95 · "
+                         "Gole: Under 2.5 (poniżej 2.5 bramki) – zgodny z 2 seriami · kurs ok. 1.95 · "
                          "w przeszłości 55% trafień, zwrot −5% (900 typów od 2005/06)")
         self.assertEqual(typ_tekst(TypWspolny("BTTS", "BTTS", ["BTTS"]), p, skut),
                          "Obie strzelą: BTTS tak (obie drużyny strzelą) · w przeszłości 51% trafień, "
@@ -331,6 +335,25 @@ class TestTypy(unittest.TestCase):
                          [("1X2", "X"), ("gole", "U2.5"), ("BTTS", "noBTTS")])
         self.assertEqual(typy_wspolne([Fakt(1, "", typ="1X"), Fakt(1, "", typ="1")])[0].typ, "1")
         self.assertIsNone(typy_wspolne([Fakt(1, "", typ="O2.5"), Fakt(1, "", typ="U2.5")])[0].typ)
+
+    def test_ostateczny_typ_i_gole(self):
+        from smaczki.report import gole_teksty, ostateczny_tekst
+        from smaczki.rules import gole_pary, typ_ostateczny
+        fakty = [Fakt(37, "6 remisów", typ="X"), Fakt(22, "x2", typ="X2"), Fakt(40, "under 11", typ="U2.5"),
+                 Fakt(45, "wynik", typ="S0:0")]
+        t = typ_ostateczny(fakty)  # najmocniejszy rynek (bez dokładnego wyniku): gole
+        self.assertEqual((t.rynek, t.typ), ("gole", "U2.5"))
+        self.assertEqual(typ_ostateczny([Fakt(30, "a", typ="1X"), Fakt(30, "b", typ="O2.5")]).typ, "1X")
+        self.assertEqual(typ_ostateczny([Fakt(30, "s", typ="S1:1")]).typ, "S1:1")
+        self.assertIsNone(typ_ostateczny([Fakt(0, "Pierwszy mecz")]))
+        p = Pozycja(None, "", "A", "B", fakty, kursy={"1": 2.5, "X": 3.2, "2": 3.0, "O2.5": 2.1, "U2.5": 1.75})
+        self.assertEqual(ostateczny_tekst(p, None), "OSTATECZNY TYP: Under 2.5 (poniżej 2.5 bramki) · kurs ok. 1.75")
+        h = para([(2000 + i, "A", hg, vg) for i, (hg, vg) in enumerate([(3, 1), (2, 2), (1, 0), (0, 0), (1, 1)])])
+        g = gole_pary(h)
+        self.assertEqual((g["powyzej"], g["ponizej"], g["seria"], g["seria_powyzej"]), (2, 3, 3, False))
+        p.gole = {"u": g}
+        self.assertEqual(gole_teksty(p), ["Gole – u A z B (ostatnie 5): powyżej 2.5 bramki – 2, poniżej 2.5 – 3, "
+                                          "średnio 2.2 gola; teraz 3 mecze z rzędu poniżej 2.5."])
 
     def test_kazda_seria_ma_typ(self):
         from smaczki.rules import TYP_ZAKLADU, TYPY, TYPY_BRAMEK

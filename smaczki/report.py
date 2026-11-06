@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from . import config as C
-from .rules import fmt, mecze, odmiana, typy_wspolne
+from .rules import fmt, mecze, odmiana, typ_ostateczny, typy_wspolne
 
 DNI = ["poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota", "niedziela"]
 DNI_KROTKO = ["pn", "wt", "śr", "czw", "pt", "sob", "nd"]
@@ -23,6 +23,7 @@ class Pozycja:
     fakty: list
     ostatni: object = None  # ostatni mecz u gospodarza (wiersz historii) albo None
     wyniki: dict = None     # mecze do podglądu (rules.wyniki_pary)
+    gole: dict = None       # podsumowanie goli pary {"u": ..., "h2h": ...} (rules.gole_pary)
     kursy: tuple = None     # aktualne średnie kursy (1, X, 2), jeśli są
 
     @property
@@ -36,6 +37,10 @@ class Pozycja:
     @property
     def wspolne(self):
         return typy_wspolne(self.fakty)
+
+    @property
+    def ostateczny(self):
+        return typ_ostateczny(self.fakty)
 
     @property
     def dzien(self):
@@ -77,7 +82,7 @@ def _podsumowanie(pozycje):
 
 OPIS_TYPU = {"1": "wygra gospodarz", "X": "remis", "2": "wygra gość",
              "1X": "gospodarz nie przegra", "X2": "gość nie przegra", "12": "nie będzie remisu",
-             "O2.5": "co najmniej 3 gole", "U2.5": "najwyżej 2 gole",
+             "O2.5": "powyżej 2.5 bramki", "U2.5": "poniżej 2.5 bramki",
              "BTTS": "obie drużyny strzelą", "noBTTS": "co najmniej jedna nie strzeli"}
 NAZWA_TYPU = {"O2.5": "Over 2.5", "U2.5": "Under 2.5", "BTTS": "BTTS tak", "noBTTS": "BTTS nie"}
 
@@ -137,6 +142,31 @@ def typ_tekst(t, p, skut):
     return " · ".join(czesci)
 
 
+def gole_teksty(p):
+    """Linie podsumowania goli pary: mecze u gospodarza i wszystkie mecze pary."""
+    out = []
+    for klucz, gdzie in [("u", f"u {p.h} z {p.v}"), ("h2h", f"wszystkie mecze {p.h} z {p.v}")]:
+        g = (p.gole or {}).get(klucz)
+        if not g:
+            continue
+        kier = "powyżej" if g["seria_powyzej"] else "poniżej"
+        teraz = (f"teraz {mecze(g['seria'])} z rzędu {kier} 2.5" if g["seria"] > 1
+                 else f"ostatni mecz {kier} 2.5")
+        out.append(f"Gole – {gdzie} (ostatnie {g['meczow']}): powyżej 2.5 bramki – {g['powyzej']}, "
+                   f"poniżej 2.5 – {g['ponizej']}, średnio {g['srednio']:.1f} gola; {teraz}.")
+    return out
+
+
+def ostateczny_tekst(p, skut):
+    """Jeden typ na mecz (rynek z najmocniejszą serią) z kursem i wynikiem takiego typu w przeszłości."""
+    t = p.ostateczny
+    if t is None:
+        return ""
+    czesci = [f"OSTATECZNY TYP: {nazwa_typu(t.typ)}"]
+    czesci += [c for c in typ_tekst(t, p, skut).split(" · ")[1:]]
+    return " · ".join(czesci)
+
+
 def ostrzezenia(info):
     """Linie ostrzeżeń do nagłówka raportu."""
     out = []
@@ -169,8 +199,13 @@ def raport_txt(pozycje, info, tytul, wszystkie=False, po_dniach=False):
         linie.append(f"   ({_ostatni_txt(p)})")
         for f in p.fakty[:C.MAKS_FAKTOW]:
             linie.append(f"   • {f.tekst}" + (f"  [{_krotko(f.typ)}]" if f.typ else ""))
+        for g in gole_teksty(p):
+            linie.append(f"   {g}")
         for t in p.wspolne:
             linie.append(f"   ⇒ Typ meczu – {typ_tekst(t, p, info.get('skutecznosc'))}")
+        ost = ostateczny_tekst(p, info.get("skutecznosc"))
+        if ost:
+            linie.append(f"   ★ {ost}")
         linie.append("")
     if not pozycje:
         linie.append("Brak meczów 4 lig angielskich w tym okresie.")
@@ -212,6 +247,9 @@ padding:0 .35rem;white-space:nowrap}
 .typy{background:var(--chip);border-radius:10px;padding:.5rem .65rem;margin:.55rem 0 .1rem;font-size:.82rem}
 .typy b{display:block;font-size:.78rem;color:var(--muted);margin-bottom:.15rem}
 .typy div{margin:.15rem 0}
+.typy .ost{margin-top:.45rem;padding-top:.4rem;border-top:1px solid var(--line);font-weight:650;color:var(--ink)}
+.gole{font-size:.78rem;color:var(--muted);margin:.45rem 0 0}
+.gole div{margin:.1rem 0}
 details>summary{cursor:pointer;color:var(--accent);font-size:.88rem;font-weight:600;margin-top:.5rem;
 list-style-position:outside;padding:.15rem 0}
 details details>summary{color:var(--ink);font-weight:550;margin-top:.7rem}
@@ -258,9 +296,14 @@ def _tabela_u_gospodarza(df):
     for r in df.itertuples():
         z = _znak(r)
         w.append(f'<tr class="{"g" if z == "2" else ("x" if z == "X" else "")}"><td>{_data_kom(r)}</td>'
-                 f'<td class="c">{r.hgoal}:{r.vgoal}</td><td class="c">{z}</td><td class="c">{r.tier}</td></tr>')
-    return ('<table><thead><tr><th>Data</th><th>Wynik</th><th>1X2</th><th>Poz.</th></tr></thead>'
+                 f'<td class="c">{r.hgoal}:{r.vgoal}</td><td class="c">{z}</td><td class="c">{_ou(r)}</td>'
+                 f'<td class="c">{r.tier}</td></tr>')
+    return ('<table><thead><tr><th>Data</th><th>Wynik</th><th>1X2</th><th>2.5</th><th>Poz.</th></tr></thead>'
             f'<tbody>{"".join(w)}</tbody></table>' + _legenda(df))
+
+
+def _ou(r):
+    return "pow." if r.hgoal + r.vgoal >= 3 else "pon."
 
 
 def _bilans(df, h, v):
@@ -278,9 +321,9 @@ def _tabela_pary(df, h):
         wyn = "W" if g > s else ("R" if g == s else "P")
         w.append(f'<tr class="{"g" if wyn == "P" else ("x" if wyn == "R" else "")}"><td>{_data_kom(r)}</td>'
                  f'<td>{"u siebie" if dom else "wyjazd"}</td><td class="c">{r.hgoal}:{r.vgoal}</td>'
-                 f'<td class="c">{wyn}</td><td class="c">{r.tier}</td></tr>')
-    return ('<table><thead><tr><th>Data</th><th>Gdzie</th><th>Wynik</th><th>W/R/P</th><th>Poz.</th></tr></thead>'
-            f'<tbody>{"".join(w)}</tbody></table>' + _legenda(df))
+                 f'<td class="c">{wyn}</td><td class="c">{_ou(r)}</td><td class="c">{r.tier}</td></tr>')
+    return ('<table><thead><tr><th>Data</th><th>Gdzie</th><th>Wynik</th><th>W/R/P</th><th>2.5</th><th>Poz.</th>'
+            f'</tr></thead><tbody>{"".join(w)}</tbody></table>' + _legenda(df))
 
 
 def _wyniki_html(p):
@@ -314,11 +357,16 @@ def _karta(p, skut=None):
     fakty = "".join(f'<li class="{"mocny" if f.waga >= C.PROG_DNIA else ""}">{e(f.tekst)}'
                     + (f' <span class="tag">{e(_krotko(f.typ))}</span>' if f.typ else "") + "</li>"
                     for f in p.fakty[:C.MAKS_FAKTOW])
+    gole = "".join(f"<div>{e(g)}</div>" for g in gole_teksty(p))
+    gole_html = f'<div class="gole">{gole}</div>' if gole else ""
     typy = "".join(f"<div>{e(typ_tekst(t, p, skut))}</div>" for t in p.wspolne)
+    ost = ostateczny_tekst(p, skut)
+    if ost:
+        typy += f'<div class="ost">{e(ost)}</div>'
     if typy:
-        fakty_html_typy = f'<div class="typy"><b>Typ meczu</b>{typy}</div>'
+        fakty_html_typy = gole_html + f'<div class="typy"><b>Typ meczu</b>{typy}</div>'
     else:
-        fakty_html_typy = ""
+        fakty_html_typy = gole_html
     klasa = "card star" if p.dluga_historia else ("card" if p.fakty else "card plain")
     return (f'<div class="{klasa}">'
             f'<div class="top"><span class="chip">{e(p.liga)}</span><span>{godz}</span>{gw}</div>'
@@ -361,11 +409,12 @@ def _dane_html(info):
     skut = info.get("skutecznosc")
     if skut and skut.get("wspolny_1X2"):
         b = {t: x for t, x in skut["bazowe"].items() if x.get("zwrot") is not None}
-        g = skut["wspolny_1X2"]
+        g = skut.get("ostateczny_z_kursem") or skut["wspolny_1X2"]
         li.append(f"<b>Typ meczu:</b> część wspólna typów ze wszystkich serii pary (zakłada, że serie potrwają), osobno "
-                  f"dla 1X2 i goli. Sprawdzone na {_mecze_tys(skut['meczow'])} z sezonów {skut['okres']} ze średnimi "
-                  f"kursami rynkowymi: typ meczu 1X2 trafiał w {g['trafione'] * 100:.0f}% i dawał zwrot "
-                  f"{_procent(g['zwrot'])} na postawioną złotówkę; "
+                  f"dla 1X2, goli i „obie strzelą”; ostateczny typ – rynek z najmocniejszą serią. Sprawdzone na "
+                  f"{_mecze_tys(skut['meczow'])} z sezonów {skut['okres']} ze średnimi kursami rynkowymi: ostateczny "
+                  f"typ trafiał w {g['trafione'] * 100:.0f}% i dawał zwrot {_procent(g['zwrot'])} na postawioną "
+                  "złotówkę; "
                   f"obstawianie wszystkich meczów na ślepo: od {_procent(max(x['zwrot'] for x in b.values()))} "
                   f"do {_procent(min(x['zwrot'] for x in b.values()))}. Bukmacherzy znają te serie – to nie są typy "
                   "z przewagą nad kursem.")
@@ -425,7 +474,10 @@ def powiadomienie(pozycje, dzien):
     for p in wybrane:
         godz = f"{p.data:%H:%M} " if p.data and (p.data.hour, p.data.minute) != (0, 0) else ""
         f = p.fakty[0]
-        typy = [f"{_krotko(t.typ)}" + (f" ({kurs_typu(p.kursy, t.typ):.2f})" if kurs_typu(p.kursy, t.typ) else "")
-                for t in p.wspolne if t.typ and t.rynek != "wynik"]
-        linie.append(f"{godz}{p.h} – {p.v}: {f.tekst}" + (f" → typ: {', '.join(typy)}" if typy else ""))
+        t = p.ostateczny
+        typ = ""
+        if t:
+            k = kurs_typu(p.kursy, t.typ)
+            typ = f" → typ: {_krotko(t.typ)}" + (f" ({k:.2f})" if k else "")
+        linie.append(f"{godz}{p.h} – {p.v}: {f.tekst}{typ}")
     return tytul, "\n".join(linie)

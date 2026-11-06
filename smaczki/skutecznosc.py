@@ -17,7 +17,7 @@ from . import config as C
 from .data_loader import (_csv_wiersze, _dekoduj, _fd_data, _fd_get, _fd_kod, kursy_z_wiersza, sezon_biezacy,
                           zbierz)
 from .report import kurs_typu
-from .rules import fakty_pary, stawki_sezonow, typy_wspolne, wyniki_sezonow
+from .rules import fakty_pary, stawki_sezonow, typ_ostateczny, typy_wspolne, wyniki_sezonow
 
 PLIK = os.path.join(os.path.dirname(__file__), "skutecznosc.json")
 TYPY_BAZOWE = ["1", "X", "2", "1X", "X2", "12", "O2.5", "U2.5", "BTTS", "noBTTS"]
@@ -107,7 +107,7 @@ def policz(archiwum, cache_dir, od_sezonu=2005, dzis=None, postep=True):
 
     klucz = np.where(hist.home < hist.visitor, hist.home + "|" + hist.visitor, hist.visitor + "|" + hist.home)
     grupy = {k: g for k, g in hist.groupby(klucz, sort=False)}
-    rekordy, wspolne = [], []
+    rekordy, wspolne, ostateczne = [], [], []
     for i, r in enumerate(mecze_k.itertuples()):
         if postep and i % 5000 == 0:
             print(f"  {i}/{len(mecze_k)} meczów …", flush=True)
@@ -124,6 +124,13 @@ def policz(archiwum, cache_dir, od_sezonu=2005, dzis=None, postep=True):
                             "glowny": j == 0, "traf": traf, "przec": przecietnie(st, r.Season, f.typ),
                             "kurs": kurs, "zysk": None if kurs is None else ((kurs - 1) if traf else -1.0)})
         gwiazdka = bool(fakty) and fakty[0].waga >= C.PROG_DNIA
+        ost = typ_ostateczny(fakty)
+        if ost is not None:
+            kurs = kurs_typu(k, ost.typ)
+            traf = trafiony(r.hgoal, r.vgoal, ost.typ)
+            ostateczne.append({"klucz": ost.klucz, "rynek": ost.rynek, "gwiazdka": gwiazdka, "traf": traf,
+                               "przec": przecietnie(st, r.Season, ost.typ), "kurs": kurs,
+                               "zysk": None if kurs is None else ((kurs - 1) if traf else -1.0)})
         for t in typy_wspolne(fakty):
             if t.typ is None:
                 wspolne.append({"klucz": f"{t.rynek}:sprzeczne", "rynek": t.rynek, "gwiazdka": gwiazdka,
@@ -140,6 +147,9 @@ def policz(archiwum, cache_dir, od_sezonu=2005, dzis=None, postep=True):
     w = pd.DataFrame(wspolne)
     w["kurs"] = pd.to_numeric(w.kurs)
     w["zysk"] = pd.to_numeric(w.zysk)
+    o = pd.DataFrame(ostateczne)
+    o["kurs"] = pd.to_numeric(o.kurs)
+    o["zysk"] = pd.to_numeric(o.zysk)
     sprzeczne = w[w.klucz.str.endswith(":sprzeczne")]
     w = w[~w.klucz.str.endswith(":sprzeczne")].copy()
     w["traf"] = w.traf.astype(bool)
@@ -169,6 +179,10 @@ def policz(archiwum, cache_dir, od_sezonu=2005, dzis=None, postep=True):
         "wspolny_1X2_gwiazdka": _statystyka(w[(w.rynek == "1X2") & w.gwiazdka]),
         "wspolny_gole": _statystyka(w[w.rynek == "gole"]),
         "sprzeczne": {k: int(n) for k, n in sprzeczne.groupby("rynek").size().items()},
+        "ostateczny": _statystyka(o),
+        "ostateczny_z_kursem": _statystyka(o[o.kurs.notna()]),
+        "ostateczny_gwiazdka": _statystyka(o[o.gwiazdka & o.kurs.notna()]),
+        "ostateczny_rynki": {k: _statystyka(g) for k, g in o.groupby("rynek")},
         "bazowe": bazowe,
     }
     return wynik, r
