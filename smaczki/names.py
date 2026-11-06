@@ -5,7 +5,6 @@ w różnych krajach. Plik ma sekcje:
   aliasy      – nazwa ze źródła -> nazwa w archiwum (gdy automat nie trafia albo trafiłby źle),
   archiwum    – ujednolicenie nazw w samym archiwum: ten sam klub zapisany pod kilkoma nazwami
                 (zmiana nazwy, inna pisownia) -> jedna nazwa, żeby historia pary się nie rozpadała,
-  archiwum_sezony – odwrotnie: dwa różne kluby pod jedną nazwą w archiwum; {nazwa: {sezon: właściwa nazwa}},
   nowe_kluby  – nazwy ze źródeł, które NIE są klubem z archiwum (np. nowy klub o podobnej nazwie jak dawny);
                 takie nazwy nie są dopasowywane automatycznie,
   uwagi       – wyjaśnienia (tylko dla ludzi).
@@ -27,7 +26,7 @@ _ZNAKI = str.maketrans({"ß": "ss", "ø": "o", "Ø": "O", "ı": "i", "ł": "l", 
 
 
 def bez_znakow(nazwa):
-    """Usuwa znaki diakrytyczne: „1. FC Köln” -> „1. FC Koln”, „Beşiktaş” -> „Besiktas”, „Málaga” -> „Malaga”."""
+    """Usuwa znaki diakrytyczne: „Atlético Madrid” -> „Atletico Madrid”, „1. FC Köln” -> „1. FC Koln”."""
     s = str(nazwa).translate(_ZNAKI)
     return "".join(c for c in unicodedata.normalize("NFKD", s) if not unicodedata.combining(c))
 

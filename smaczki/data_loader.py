@@ -1,4 +1,4 @@
-"""Dane: archiwum engsoccerdata (Anglia od 1888, pozostałe kraje – patrz config.KRAJE; do 05–06.2025)
+"""Dane: archiwum engsoccerdata (Anglia od 1888, Hiszpania od 1929, Włochy od 1929 – config.KRAJE; do 05.2025)
 + bieżące wyniki i terminarz. Każdy kraj osobno (własne archiwum, nazwy i odsetki wyników sezonów).
 
 Źródła bieżące:
@@ -132,14 +132,9 @@ def wczytaj_archiwum(sciezka, kraj=C.KRAJ_DOMYSLNY, poziomy=None):
     d["Season"] = pd.to_numeric(d["Season"], errors="coerce").fillna(0).astype(int)
     if poziomy is not None:
         d = d[d.tier.isin(list(poziomy))].copy()
-    aliasy = wczytaj_aliasy(kraj)
-    ujednolic = aliasy.get("archiwum", {})
-    w_sezonach = aliasy.get("archiwum_sezony", {})  # {nazwa: {sezon: inna nazwa}} – dwa kluby pod jedną nazwą
+    ujednolic = wczytaj_aliasy(kraj).get("archiwum", {})
     for kol in ("home", "visitor"):
         d[kol] = d[kol].astype(str).str.strip()
-        for nazwa, sezony in w_sezonach.items():
-            for sezon, nowa in sezony.items():
-                d.loc[(d[kol] == nazwa) & (d.Season == int(sezon)), kol] = nowa
         if ujednolic:
             d[kol] = d[kol].replace(ujednolic)
     d["zrodlo"] = "archiwum"
@@ -461,8 +456,7 @@ def stan_lig(dane, ligi, s_biez):
 def luki_archiwum(hist):
     """Sezony bez ani jednego meczu w archiwum (od 1993/94 – tyle sięga football-data.co.uk) do jego końca.
 
-    engsoccerdata nie ma całego sezonu 2022/23 w Anglii i 1994/95 we Francji; jeśli autorzy je dopiszą,
-    nic nie będzie uzupełniane.
+    engsoccerdata nie ma całego sezonu 2022/23 w Anglii; jeśli autorzy go dopiszą, nic nie będzie uzupełniane.
     """
     if "Season" not in hist or not len(hist):
         return []

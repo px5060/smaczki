@@ -389,7 +389,16 @@ margin:0;color:var(--ink);font-size:1rem;font-weight:650;list-style:none}
 .liga .card{margin:.5rem 0}
 .liga.pusta{display:flex;justify-content:space-between;padding:.75rem .8rem;color:var(--muted)}
 .liga.pusta .lic{font-size:.75rem}
-h3.kraj{font-size:.95rem;color:var(--ink);margin:1.1rem 0 .2rem;font-weight:700}
+.kafle{display:grid;grid-template-columns:repeat(auto-fit,minmax(6.4rem,1fr));gap:.5rem;margin:.6rem 0 .4rem}
+.kafel{display:flex;flex-direction:column;align-items:flex-start;gap:.1rem;text-align:left;font:inherit;color:var(--ink);
+background:var(--card);border:1px solid var(--line);border-radius:14px;padding:.65rem .7rem;cursor:pointer;min-width:0}
+.kafel .kn{font-weight:700;font-size:.95rem}
+.kafel .ile{color:var(--star);font-weight:700;font-size:1.35rem;line-height:1.2}
+.kafel .km,.kafel .kd{font-size:.72rem;color:var(--muted)}
+.kafel .kd{color:var(--star)}
+.kafel.akt{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.kafel.pusty{cursor:default;opacity:.55}
+div.kraj[hidden]{display:none}
 .uw{color:var(--accent)}
 section.dzien[hidden]{display:none}
 .predykcja{border:2px solid var(--accent);border-radius:14px;padding:.8rem .9rem;margin:1.6rem 0 .6rem;
@@ -420,6 +429,8 @@ tr.dawniej td{background:var(--nieb)}
 .lg.teraz{background:var(--ziel)}
 .lg.dawniej{background:var(--nieb)}
 details.seria>summary{color:inherit;font-size:inherit;font-weight:inherit;margin:0}
+details.seria>summary{list-style:none}
+details.seria>summary::-webkit-details-marker{display:none}
 details.seria>summary::after{content:" ▾";color:var(--muted);font-weight:400}
 details.seria[open]>summary::after{content:" ▴"}
 details.seria .opis{font-size:.8rem;color:var(--muted);margin:.35rem 0 .3rem;font-weight:400}
@@ -681,8 +692,9 @@ def _predykcja_html(pr, skut, tytul="Ostateczna predykcja dnia", typy=None):
             + (f'<div class="pw">{e(hist)}</div>' if hist else "") + lista + "</div>")
 
 
-def _liga_html(nazwa, mecze_ligi, skut):
-    """Rozwijana zakładka ligi: tylko mecze z seriami, od najciekawszego. Bez serii – sam dopisek."""
+def _liga_html(nazwa, mecze_ligi, skut, otwarta=False):
+    """Rozwijana zakładka ligi: tylko mecze z seriami, od najciekawszego. Bez serii – sam dopisek.
+    otwarta – rozwinięta od razu (kraj z jedną ligą)."""
     ze = sorted([p for p in mecze_ligi if p.ma_serie], key=lambda p: -p.waga)
     if not ze:
         opis = "brak smaczków" if mecze_ligi else "brak meczów"
@@ -690,12 +702,37 @@ def _liga_html(nazwa, mecze_ligi, skut):
     gw = sum(1 for p in ze if p.dluga_historia)
     licznik = odmiana(len(ze), "mecz ze smaczkiem", "mecze ze smaczkami", "meczów ze smaczkami") \
         + (f" · ★{gw}" if gw else "")
-    return (f'<details class="liga"><summary><span>{e(nazwa)}</span><span class="lic">{e(licznik)}</span>'
+    return (f'<details class="liga"{" open" if otwarta else ""}><summary><span>{e(nazwa)}</span>'
+            f'<span class="lic">{e(licznik)}</span>'
             f'</summary>{"".join(_karta(p, skut) for p in ze)}</details>')
 
 
+def _kafle_html(dnia, info, skut):
+    """Kafelki krajów dnia (★ = liczba meczów ze smaczkami); kliknięcie kafelka pokazuje ligi kraju."""
+    kafle, kraje = [], []
+    for k, ligi in grupy(dnia, info, puste_ligi=True):
+        mecze_kraju = [p for _, m in ligi for p in m]
+        ze = sum(1 for p in mecze_kraju if p.ma_serie)
+        kod = e(k["kraj"] or "inne")
+        if not mecze_kraju:
+            kafle.append(f'<button type="button" class="kafel pusty" data-k="{kod}" disabled>'
+                         f'<span class="kn">{e(k["nazwa"])}</span><span class="km">brak meczów</span></button>')
+            continue
+        dlugie = sum(1 for p in mecze_kraju if p.dluga_historia)
+        kafle.append(f'<button type="button" class="kafel" data-k="{kod}" aria-expanded="false">'
+                     f'<span class="kn">{e(k["nazwa"])}</span><span class="ile">★ {ze}</span>'
+                     f'<span class="km">{odmiana(ze, "smaczek", "smaczki", "smaczków").split(" ", 1)[1]} · '
+                     f'{mecze(len(mecze_kraju))}</span>'
+                     + (f'<span class="kd">{dlugie} z długą historią</span>' if dlugie else "") + "</button>")
+        jedna = len(ligi) == 1
+        kraje.append(f'<div class="kraj" data-k="{kod}" hidden>'
+                     + "".join(_liga_html(n, m, skut, otwarta=jedna) for n, m in ligi) + "</div>")
+    return f'<div class="kafle">{"".join(kafle)}</div>' + "".join(kraje)
+
+
 def raport_html(pozycje, info, dzis, od, do):
-    """Strona: kalendarz dni u góry, po wybraniu dnia kraje z rozwijanymi zakładkami lig i ostateczna predykcja dnia."""
+    """Strona: kalendarz dni u góry; po wybraniu dnia kafelki krajów (★ = liczba meczów ze smaczkami),
+    po kliknięciu kafelka rozwijane zakładki lig kraju; na dole ostateczna predykcja dnia."""
     skut = info.get("skutecznosc")
     wiele = len(_kraje(info)) > 1
     dni = sorted({p.dzien for p in pozycje if p.dzien})
@@ -710,10 +747,7 @@ def raport_html(pozycje, info, dzis, od, do):
             f'<span class="dd">{dzien.day}.{dzien.month:02d}</span>'
             f'<span class="ile">{"★ " + str(gw) if gw else str(sum(1 for p in dnia if p.ma_serie)) + " sm."}'
             f'</span></button>')
-        tresc = ""
-        for k, ligi in grupy(dnia, info, puste_ligi=not wiele):  # kilka krajów: tylko kraje i ligi z meczami
-            tresc += (f'<h3 class="kraj">{e(k["nazwa"])}</h3>' if wiele else "")
-            tresc += "".join(_liga_html(n, m, skut) for n, m in ligi)
+        tresc = _kafle_html(dnia, info, skut)
         pr = predykcja(dnia)
         panele.append(f'<section class="dzien" data-d="{iso}"><h2>{e(naglowek_dnia(dzien, dzis))}</h2>'
                       + tresc
@@ -752,15 +786,43 @@ Wygenerowano {teraz}.</footer>
 (function () {{
   var przyciski = document.querySelectorAll(".kal button");
   var panele = document.querySelectorAll("section.dzien");
-  if (!przyciski.length) return;
-  function pokaz(d) {{
-    panele.forEach(function (s) {{ s.hidden = s.getAttribute("data-d") !== d; }});
-    przyciski.forEach(function (b) {{ b.classList.toggle("akt", b.getAttribute("data-d") === d); }});
-    try {{ history.replaceState(null, "", "#" + d); }} catch (e) {{}}
+  var dzien = null, kraj = "";
+  function zapisz() {{
+    try {{ history.replaceState(null, "", "#" + dzien + (kraj ? "/" + kraj : "")); }} catch (e) {{}}
   }}
-  przyciski.forEach(function (b) {{ b.addEventListener("click", function () {{ pokaz(b.getAttribute("data-d")); }}); }});
-  var h = location.hash.slice(1), dni = Array.prototype.map.call(przyciski, function (b) {{ return b.getAttribute("data-d"); }});
-  pokaz(dni.indexOf(h) >= 0 ? h : dni[0]);
+  function kafel(s, k) {{  // jeden otwarty kraj w dniu; ponowne kliknięcie zamyka
+    s.querySelectorAll(".kafel").forEach(function (b) {{
+      var on = b.getAttribute("data-k") === k;
+      b.classList.toggle("akt", on); b.setAttribute("aria-expanded", on ? "true" : "false");
+    }});
+    s.querySelectorAll("div.kraj").forEach(function (p) {{ p.hidden = p.getAttribute("data-k") !== k; }});
+  }}
+  function pokaz(d, k) {{
+    dzien = d;
+    panele.forEach(function (s) {{
+      var ten = s.getAttribute("data-d") === d;
+      s.hidden = !ten;
+      if (ten) {{
+        var b = k && s.querySelector('.kafel[data-k="' + k + '"]:not([disabled])');
+        kraj = b ? k : "";
+        kafel(s, kraj);
+      }}
+    }});
+    przyciski.forEach(function (b) {{ b.classList.toggle("akt", b.getAttribute("data-d") === d); }});
+    zapisz();
+  }}
+  document.querySelectorAll(".kafel").forEach(function (b) {{
+    b.addEventListener("click", function () {{
+      var k = b.getAttribute("data-k");
+      kraj = kraj === k ? "" : k;
+      kafel(b.closest("section"), kraj);
+      zapisz();
+    }});
+  }});
+  if (!przyciski.length) return;
+  przyciski.forEach(function (b) {{ b.addEventListener("click", function () {{ pokaz(b.getAttribute("data-d"), kraj); }}); }});
+  var h = location.hash.slice(1).split("/"), dni = Array.prototype.map.call(przyciski, function (b) {{ return b.getAttribute("data-d"); }});
+  pokaz(dni.indexOf(h[0]) >= 0 ? h[0] : dni[0], h[1] || "");
 }})();
 </script>
 </body></html>

@@ -21,8 +21,8 @@ class Fakt:
 class Zakres:
     """Zakres danych kraju w tekstach smaczków.
 
-    w     – dopisek, gdy w danych są tylko niektóre poziomy ligowe ("w 1. lidze", "w 1. i 2. Bundeslidze");
-            "" = wszystkie poziomy ligowe kraju (Anglia, Szkocja),
+    w     – dopisek, gdy w danych są tylko niektóre poziomy ligowe kraju ("w 1. lidze");
+            "" = wszystkie poziomy ligowe kraju (Anglia: 4 poziomy),
     pelna – archiwum ma całą historię tych rozgrywek: wolno pisać „nigdy”; inaczej (wycinek historii) seria od
             pierwszego meczu w danych to „w żadnym z N meczów od X r. (dane od X)”, a jej waga jest obniżona,
     od    – {poziom: pierwszy sezon w danych}.

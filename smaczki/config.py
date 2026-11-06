@@ -17,6 +17,7 @@ class Kraj:
 
 
 # Kolejność krajów = kolejność na stronie i w raporcie. Które ligi są włączone: plik ligi.json (PLIK_LIG).
+# Inny kraj z engsoccerdata (data-raw/<kraj>.csv) można dodać tu, z kodami lig football-data.co.uk.
 KRAJE = {
     "england": Kraj("Anglia", {"E0": ("Premier League", 1, 39), "E1": ("Championship", 2, 40),
                                "E2": ("League One", 3, 41), "E3": ("League Two", 4, 42)},
@@ -27,27 +28,6 @@ KRAJE = {
                   uwagi="La Liga od 1928/29 (przerwa 1936–1939 – wojna domowa)"),
     "italy": Kraj("Włochy", {"I1": ("Serie A", 1, 135)}, od=1929, pelna=True, w={(1,): "w 1. lidze"},
                   uwagi="Serie A od 1929/30 (przerwa 1943–1945 – wojna)"),
-    "germany": Kraj("Niemcy", {"D1": ("Bundesliga", 1, 78), "D2": ("2. Bundesliga", 2, 79)}, od=1963, pelna=True,
-                    w={(1,): "w Bundeslidze", (2,): "w 2. Bundeslidze", (1, 2): "w 1. i 2. Bundeslidze"},
-                    od_poziomu={2: 1974},
-                    uwagi="Bundesliga od 1963/64 i 2. Bundesliga od 1974/75; bez niższych lig"),
-    "france": Kraj("Francja", {"F1": ("Ligue 1", 1, 61)}, od=1932, pelna=False, w={(1,): "w 1. lidze"},
-                   uwagi="1. liga od 1932/33, ale archiwum nie ma sezonu 1937/38 (i lat wojny 1939–1945), "
-                         "więc traktujemy je jak wycinek historii"),
-    "holland": Kraj("Holandia", {"N1": ("Eredivisie", 1, 88)}, od=1956, pelna=False, w={(1,): "w 1. lidze"},
-                    uwagi="Eredivisie od 1956/57; wcześniejsze mistrzostwa Holandii (od 1888) nie są w danych"),
-    "portugal": Kraj("Portugalia", {"P1": ("Primeira Liga", 1, 94)}, od=1994, pelna=False, w={(1,): "w 1. lidze"},
-                     uwagi="tylko od 1994/95 (liga od 1934/35)"),
-    "scotland": Kraj("Szkocja", {"SC0": ("Premiership", 1, 179), "SC1": ("Championship (SCO)", 2, 180),
-                                 "SC2": ("League One (SCO)", 3, 183), "SC3": ("League Two (SCO)", 4, 184)},
-                     od=1994, pelna=False, w={(1, 2, 3, 4): "", (1,): "w 1. lidze"}, od_poziomu={3: 1997, 4: 1997},
-                     uwagi="tylko od 1994/95 (poziomy 3–4 od 1997/98); liga od 1890/91"),
-    "belgium": Kraj("Belgia", {"B1": ("Pro League", 1, 144)}, od=1995, pelna=False, w={(1,): "w 1. lidze"},
-                    uwagi="tylko od 1995/96 (liga od 1895/96)"),
-    "turkey": Kraj("Turcja", {"T1": ("Süper Lig", 1, 203)}, od=1994, pelna=False, w={(1,): "w 1. lidze"},
-                   uwagi="tylko od 1994/95 (liga od 1959)"),
-    "greece": Kraj("Grecja", {"G1": ("Super League", 1, 197)}, od=1994, pelna=False, w={(1,): "w 1. lidze"},
-                   uwagi="tylko od 1994/95 (liga od 1959/60)"),
 }
 KRAJ_DOMYSLNY = "england"
 PLIK_LIG = "ligi.json"  # włączone kraje i poziomy, np. {"england": [1, 2, 3, 4], "spain": [1]}
@@ -62,7 +42,7 @@ LIGA_KRAJ = {kod: k for k, kraj in KRAJE.items() for kod in kraj.ligi}  # kod li
 ARCHIWUM_BAZA = "https://raw.githubusercontent.com/jalapic/engsoccerdata/master/data-raw"
 ARCHIWUM_URL = f"{ARCHIWUM_BAZA}/england.csv"
 PIERWSZY_SEZON_PO_ARCHIWUM = 2025  # archiwa kończą się w maju–czerwcu 2025, sezon 2025/26 dopisujemy ze źródła bieżącego
-# Sezony, których brakuje w archiwum (np. Anglia 2022/23, Francja 1994/95), są wykrywane automatycznie od tego sezonu
+# Sezony, których brakuje w archiwum (np. Anglia 2022/23), są wykrywane automatycznie od tego sezonu
 # i dopisywane ze źródła bieżącego (football-data.co.uk ma te ligi od 1993/94–1997/98). Wcześniejsze przerwy to lata wojen.
 LUKI_OD_SEZONU = 1993
 

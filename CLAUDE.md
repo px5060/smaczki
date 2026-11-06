@@ -1,6 +1,6 @@
 # smaczki
 
-Aplikacja „Smaczki meczowe” (Python; 4 ligi angielskie + 10 krajów z engsoccerdata, włączane w `ligi.json`):
+Aplikacja „Smaczki meczowe” (Python; 4 ligi angielskie + La Liga i Serie A, włączane w `ligi.json`):
 serie w pojedynkach par, typ meczu, ostateczna predykcja,
 strona na GitHub Pages odświeżana przez GitHub Actions (`.github/workflows/smaczki.yml`). Opis i reguły: `README.md`.
 
@@ -14,3 +14,5 @@ strona na GitHub Pages odświeżana przez GitHub Actions (`.github/workflows/sma
   „X z ostatnich 10”, bez „pierwszy mecz od X lat”). Ostateczny typ = typ najdłuższej serii, potem najwyższy kurs.
 - Kraje i ligi: `smaczki/config.py` (`KRAJE`: kody football-data, początek danych, pełna historia / wycinek),
   aliasy per kraj w `smaczki/aliasy/<kraj>.json`. Wycinek historii: bez „nigdy”, z „(dane od X)”, waga × 0,5.
+  Użytkownik chce tylko Anglii, Hiszpanii i Włoch (nie dodawać innych krajów bez prośby).
+- Strona: kalendarz dni, w dniu kafelki krajów (★ = liczba meczów ze smaczkami), po kliknięciu ligi kraju.
