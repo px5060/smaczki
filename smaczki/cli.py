@@ -283,8 +283,9 @@ def main(argv=None):
         p.add_argument("--raport", default=raport, help=f"plik raportu tekstowego (domyślnie {raport})")
         p.add_argument("--wszystkie", action="store_true", help="pokaż też mecze bez smaczków")
 
-    p = sub.add_parser("dzis", parents=[wspolne], help="mecze dziś i jutro + strona HTML i powiadomienie")
-    terminarzowe(p, 1, "raport_dzis.txt")
+    p = sub.add_parser("dzis", parents=[wspolne],
+                       help="mecze od dziś na tydzień (kalendarz na stronie HTML) + powiadomienie o dzisiejszych")
+    terminarzowe(p, 6, "raport_dzis.txt")
     p.add_argument("--html", default="site/index.html", help="strona HTML (domyślnie site/index.html)")
     p.add_argument("--ntfy", help="temat ntfy.sh do powiadomień (albo zmienna NTFY_TOPIC)")
 

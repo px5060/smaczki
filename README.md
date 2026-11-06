@@ -47,6 +47,13 @@ Zakończone sezony są zapisywane w `dane/cache/` i nie są pobierane ponownie; 
   (archiwum 5:2, football-data 2:5).
 - Baraże i puchary nie są uwzględnione.
 
+### Strona
+
+U góry **kalendarz**: kolejne dni z meczami (terminarz football-data.co.uk obejmuje zwykle kilka najbliższych dni),
+przy każdym dniu liczba meczów z ★. Po wybraniu dnia: **cztery rozwijane zakładki lig** (Premier League,
+Championship, League One, League Two) z licznikami; po rozwinięciu najpierw mecze ze smaczkami (od najciekawszego),
+potem pozostałe. Na dole dnia **ostateczna predykcja dnia**. Wybrany dzień jest zapamiętany w adresie (#RRRR-MM-DD).
+
 ### Podgląd wyników
 
 Na stronie każdy mecz ma przycisk **„Pokaż wyniki”**: wszystkie mecze ligowe u gospodarza z tym rywalem (od najnowszego,
@@ -91,7 +98,7 @@ Gdyby mimo to został wyłączony, GitHub przyśle e-mail: wystarczy kliknąć *
 
 | Polecenie | Co robi |
 |---|---|
-| `python -m smaczki dzis` | mecze dziś i jutro (`--dni 2` = dziś + 2 dni), `raport_dzis.txt` + `site/index.html` (+ powiadomienie, jeśli ustawiony `NTFY_TOPIC`) |
+| `python -m smaczki dzis` | mecze od dziś na tydzień (`--dni N` = dziś + N dni, domyślnie 6), `raport_dzis.txt` + `site/index.html` (+ powiadomienie o dzisiejszych meczach, jeśli ustawiony `NTFY_TOPIC`) |
 | `python -m smaczki kolejka` | najbliższe 7 dni (`--dni N` albo `--od 2026-11-07 --do 2026-11-09`), sortowane od najciekawszego, `raport_kolejka.txt` |
 | `python -m smaczki kolejka --plik-meczow mecze.csv` | własna lista meczów (kolumny `home,away,date,liga`; `date` i `liga` opcjonalne) |
 | `python -m smaczki mecz "Derby" "Bolton"` | pełna karta pary: bilans u gospodarza, ostatnie wygrane, serie, średnia goli, 0:0, najwyższe zwycięstwa, bilans wszystkich meczów, forma (`--wyniki`: lista wszystkich meczów u gospodarza) |

@@ -223,6 +223,13 @@ class TestCLI(Tmp):
         self.assertIn("Pokaż wyniki", strona)                 # podgląd meczów po kliknięciu
         self.assertIn("01.09.2026<sup>°</sup>", strona)      # wynik spoza archiwum oznaczony
         self.assertIn("Skąd dane i czy są kompletne", strona)
+        # kalendarz dni u góry, rozwijane zakładki lig, ostateczna predykcja każdego dnia
+        self.assertIn('<nav class="kal">', strona)
+        self.assertIn('<button type="button" data-d="2026-11-06">', strona)
+        self.assertIn('<section class="dzien" data-d="2026-11-07">', strona)
+        self.assertIn('<details class="liga"><summary><span>Championship</span>', strona)
+        self.assertIn('<div class="liga pusta"><span>Premier League</span><span class="lic">brak meczów</span>', strona)
+        self.assertIn("Ostateczna predykcja dnia", strona)
         self.assertEqual(urlopen.call_count, 1)
         req = urlopen.call_args[0][0]
         self.assertIn("ntfy.sh/test-temat?title=Smaczki", req.full_url)
