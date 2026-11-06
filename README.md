@@ -10,13 +10,10 @@ Przykład z 7.11.2026:
    (ostatni mecz u West Bromwich Albion: 10.04.2026, 0:0)
    • Ten sam wynik 0:0 w 4 meczach z rzędu u West Bromwich Albion z Millwall (od 2023 r.).  [wynik 0:0]
    • 6 remisów z rzędu w meczach u West Bromwich Albion z Millwall (od 2019 r.). …  [X]
-   • Poniżej 2.5 bramki (under) w 7 meczach z rzędu u West Bromwich Albion z Millwall (od 2018 r.).  [Under 2.5]
    • West Bromwich Albion nie wygrał z Millwall od 2020 r. (10 meczów, u siebie i na wyjeździe) – …  [X2]
    • Millwall nie wygrał u West Bromwich Albion od 2001 r. (8 meczów) – ostatnio 11.10.2001, 0:2.  [1X]
-   Gole – u West Bromwich Albion z Millwall (ostatnie 10): powyżej 2.5 bramki – 1, poniżej 2.5 – 9, średnio 1.2 gola; teraz 7 meczów z rzędu poniżej 2.5.
    ⇒ Typ meczu – 1X2: X (remis) – część wspólna serii X, X2, 1X · kurs ok. 3.51 · w przeszłości …
-   ⇒ Typ meczu – Gole: Under 2.5 (poniżej 2.5 bramki) · kurs ok. 1.96 · w przeszłości …
-   ★ OSTATECZNY TYP: X (remis) · kurs ok. 3.51 · w przeszłości …
+   ★ OSTATECZNY TYP: X2 (gość nie przegra) · kurs ok. 1.76 · w przeszłości …
 ```
 
 ★ oznacza mecz, którego najmocniejsza seria ma wagę ≥ 25 (`PROG_DNIA` w `smaczki/config.py`), np. „nigdy nie wygrał”,
@@ -109,8 +106,8 @@ Opcje wspólne: `--zrodlo auto|fd|api|brak`, `--dane FOLDER` (domyślnie `dane`)
 
 Liczone są **tylko pojedynki tych dwóch drużyn** (mecze ligowe sprzed dnia meczu), bez formy z innymi rywalami.
 Dla każdej pary aplikacja sprawdza bieżące serie (od ostatniego meczu wstecz) wszystkich wyników 1X2,
-z perspektywy gospodarza i gościa, a także serie bramkowe (under/over 2.5, obie strzelą, ten sam wynik),
-w dwóch układach:
+z perspektywy gospodarza i gościa, a także serie bramkowe (powyżej/poniżej 2.5 bramki, obie strzelą, ten sam wynik),
+w dwóch układach. Nie ma rozkładów typu „7 z 10 ostatnich meczów” – tylko serie z rzędu.
 
 | Seria | Mecze u gospodarza z tym rywalem | Wszystkie mecze pary (u siebie i na wyjeździe) |
 |---|---|---|
@@ -120,22 +117,20 @@ w dwóch układach:
 | gość nie wygrał (1X) | „Bolton Wanderers nie wygrał u Derby County od 1981 r. (16 meczów) – ostatnio 23.09.1981, 0:2.” | „Swansea City nie wygrał z Birmingham City od 2020 r. (10 meczów, u siebie i na wyjeździe) – ostatnio …” |
 | gospodarz nie wygrał (X2) | „Blackburn Rovers nie wygrał u siebie z West Ham United od 2005 r. (5 meczów) – ostatnio 10.12.2005, 3:2.” | „Cardiff City nie wygrał z Burnley od 2012 r. (9 meczów, u siebie i na wyjeździe) – …” |
 | bez remisu (12) | „Bez remisu w meczach u Fulham z Newcastle United od 1984 r. (19 meczów) – ostatni remis 03.03.1984, 2:2.” | „Bez remisu w meczach X z Y od … (… meczów, u siebie i na wyjeździe)” |
-| poniżej 2.5 bramki (under) | „Poniżej 2.5 bramki (under) w 7 meczach z rzędu u West Bromwich Albion z Millwall (od 2018 r.).” | „Poniżej 2.5 bramki (under) w 5 meczach z rzędu między Blackburn Rovers a West Ham United (u siebie i na wyjeździe, od 2009 r.).” |
-| powyżej 2.5 bramki (over) | „Powyżej 2.5 bramki (over) w 5 meczach z rzędu u Preston North End z Southampton (od 2007 r.).” | jak obok, dla wszystkich meczów pary |
-| obie strzelą / co najmniej jedna bez gola | „Obie drużyny strzelały w 7 meczach z rzędu u Preston North End z Southampton (od 1966 r.).” | jak obok |
+| poniżej 2.5 bramki (under), od 8 meczów | „Poniżej 2.5 bramki (under) w 9 meczach z rzędu u X z Y (od 2008 r.).” | „Poniżej 2.5 bramki (under) w 11 meczach z rzędu między X a Y (u siebie i na wyjeździe, od 2004 r.).” |
+| powyżej 2.5 bramki (over), od 8 meczów | „Powyżej 2.5 bramki (over) w 8 meczach z rzędu u X z Y (od 2010 r.).” | jak obok, dla wszystkich meczów pary |
+| obie strzelą / co najmniej jedna bez gola, od 8 meczów | „Obie drużyny strzelały w 8 meczach z rzędu u X z Y (od 2012 r.).” | jak obok |
 | ten sam dokładny wynik (od 3 meczów) | „Ten sam wynik 0:0 w 4 meczach z rzędu u West Bromwich Albion z Millwall (od 2023 r.).” | „Ten sam wynik 1:0 dla X w 3 meczach z rzędu między X a Y …” |
 
 Gdy seria obejmuje całą historię: „Fulham NIGDY nie wygrał ligowo u Arsenal (31 meczów od 1914 r.)”,
 „Mecze u X z Y nigdy nie skończyły się remisem”. „Pierwszy ligowy mecz tych drużyn w historii” jest tylko
 informacją (bez ★ i bez typu); „pierwszy mecz od X lat” nie jest pokazywany.
 
-**Gole pary – przy każdym meczu**, także bez serii: ile z ostatnich 10 meczów u gospodarza i ile z ostatnich 10
-wszystkich meczów pary skończyło się powyżej, a ile poniżej 2.5 bramki, średnia goli i bieżąca seria, np.
-„Gole – u West Bromwich Albion z Millwall (ostatnie 10): powyżej 2.5 bramki – 1, poniżej 2.5 – 9, średnio 1.2 gola;
-teraz 7 meczów z rzędu poniżej 2.5”. W tabelach „Pokaż wyniki” jest kolumna 2.5 (pow./pon.).
+W tabelach „Pokaż wyniki” jest kolumna 2.5 (pow./pon.).
 
 **Pokazywane są wszystkie serie pary**, które spełniają próg (bez limitu na mecz):
-- co najmniej 4 mecze (ten sam dokładny wynik: 3) i seria rzadsza niż ok. 1 na 20, albo
+- co najmniej 4 mecze (powyżej/poniżej 2.5 bramki i „obie strzelą”: co najmniej 8 meczów; ten sam dokładny
+  wynik: 3) i seria rzadsza niż ok. 1 na 20, albo
 - „nie wygrał” trwające co najmniej 10 lat i co najmniej 5 meczów.
 
 Dwie serie złożone z dokładnie tych samych meczów są łączone w jedno zdanie, np. „Manchester United wygrał u siebie z Luton
@@ -181,14 +176,14 @@ z meczów sprzed danego meczu (tak, jak w dniu meczu). Potem sprawdzane było, c
 | 1X | 5 799 | 72.2% | 70.0% | 1.32 | −6.7% |
 | X2 | 3 114 | 61.1% | 56.6% | 1.57 | −7.7% |
 | 12 | 1 783 | 73.0% | 73.6% | 1.30 | −4.8% |
-| Under 2.5 | 2 619 | 51.2% | 51.3% | 1.80 | −8.3% |
-| Over 2.5 | 2 527 | 51.6% | 48.7% | 1.88 | −4.4% |
-| BTTS tak | 2 580 | 52.3% | 51.9% | – | brak kursów |
-| BTTS nie | 2 041 | 48.0% | 48.1% | – | brak kursów |
+| Under 2.5 | 373 | 52.0% | 51.3% | 1.80 | −7.1% |
+| Over 2.5 | 307 | 50.8% | 48.7% | 1.85 | −7.7% |
+| BTTS tak | 396 | 58.8% | 51.9% | – | brak kursów |
+| BTTS nie | 187 | 53.5% | 48.0% | – | brak kursów |
 | dokładny wynik | 531 | 10.2% | 9.7% | – | brak kursów |
 | **1X2 razem** | 15 215 | 62.2% | 57.9% | 1.68 | −6.7% |
-| **1X2 razem, mecze z ★** | 4 899 | 60.6% | 54.0% | 1.76 | −8.2% |
-| **gole razem** | 5 146 | 51.4% | 50.0% | 1.84 | −6.4% |
+| **1X2 razem, mecze z ★** | 4 711 | 60.4% | 53.7% | 1.77 | −8.3% |
+| **gole razem** | 680 | 51.5% | 50.1% | 1.82 | −7.4% |
 
 | Na ślepo, każdy mecz | Typów | Trafione | Przeciętnie | Śr. kurs | Zwrot |
 |---|---|---|---|---|---|
@@ -207,13 +202,13 @@ Ostateczny typ (jeden na mecz):
 
 | Ostateczny typ | Typów | Trafione | Przeciętnie | Śr. kurs | Zwrot |
 |---|---|---|---|---|---|
-| z rynku 1X2 | 14 338 | 68.1% | 64.4% | 1.47 | −5.8% |
-| obie strzelą | 2 149 | 50.2% | 50.4% | – | brak kursów |
-| z rynku goli | 3 338 | 51.1% | 50.1% | 1.85 | −6.7% |
-| dokładny wynik | 90 | 7.8% | 9.3% | – | brak kursów |
-| **razem, z kursem** | 17 676 | 64.9% | 61.7% | 1.54 | −5.9% |
-| **razem, z kursem, mecze z ★** | 5 303 | 68.1% | 62.6% | 1.48 | −5.5% |
-| **ostateczna predykcja dnia** (najdłuższa seria dnia; liczba = dni) | 2 974 | 71.1% | 65.8% | 1.39 | −4.8% |
+| z rynku 1X2 | 14 923 | 67.8% | 64.0% | 1.48 | −5.9% |
+| obie strzelą | 400 | 57.5% | 50.9% | – | brak kursów |
+| z rynku goli | 544 | 49.8% | 50.1% | 1.84 | −9.3% |
+| dokładny wynik | 150 | 7.3% | 9.5% | – | brak kursów |
+| **razem, z kursem** | 15 467 | 67.1% | 63.5% | 1.49 | −6.0% |
+| **razem, z kursem, mecze z ★** | 4 926 | 68.8% | 63.2% | 1.46 | −5.8% |
+| **ostateczna predykcja dnia** (najdłuższa seria dnia; liczba = dni) | 2 858 | 71.9% | 66.6% | 1.37 | −5.3% |
 
 Serie wykluczały się w 0 meczach (1X2) i w 0 meczach (gole).
 

@@ -11,8 +11,8 @@ import pandas as pd
 from . import config as C
 from . import skutecznosc
 from .data_loader import BladDanych, Mecz, pobierz_archiwum, zbierz
-from .report import Pozycja, gole_teksty, ostateczny_tekst, powiadomienie, raport_html, raport_txt, typ_tekst
-from .rules import fmt, gole_pary, karta_meczu, ostatni_u_gospodarza, ranking, smaczki, wyniki_pary
+from .report import Pozycja, ostateczny_tekst, powiadomienie, raport_html, raport_txt, typ_tekst
+from .rules import fmt, karta_meczu, ostatni_u_gospodarza, ranking, smaczki, wyniki_pary
 
 if hasattr(sys.stdout, "reconfigure"):  # polskie znaki w konsoli Windows
     for strumien in (sys.stdout, sys.stderr):
@@ -66,10 +66,8 @@ def _pozycje(dane, terminarz, dzis):
         hist = przed[dzien]
         ref = pd.Timestamp(dzien) if dzien else pd.Timestamp(dzis)
         wyn = wyniki_pary(hist, h, v)
-        h2h = pd.concat([wyn["u_gosp"], wyn["rewanze"]]).sort_values("Date", kind="stable")
-        gole = {"u": gole_pary(wyn["u_gosp"].iloc[::-1], C.GOLE_OSTATNIE), "h2h": gole_pary(h2h, C.GOLE_OSTATNIE)}
         out.append(Pozycja(m.data, m.liga, h, v, smaczki(hist, h, v, ref), ostatni=ostatni_u_gospodarza(hist, h, v),
-                           wyniki=wyn, kursy=m.kursy, gole=gole))
+                           wyniki=wyn, kursy=m.kursy))
     return out
 
 
@@ -186,12 +184,7 @@ def cmd_mecz(a):
         skut = skutecznosc.wczytaj()
         for f in fakty:
             print(("  ★ " if f.waga >= C.PROG_DNIA else "  • ") + f.tekst + (f"  [{f.typ}]" if f.typ else ""))
-        wyn = wyniki_pary(dane.hist, h, v)
-        h2h = pd.concat([wyn["u_gosp"], wyn["rewanze"]]).sort_values("Date", kind="stable")
-        poz = Pozycja(None, "", h, v, fakty, gole={"u": gole_pary(wyn["u_gosp"].iloc[::-1], C.GOLE_OSTATNIE),
-                                                   "h2h": gole_pary(h2h, C.GOLE_OSTATNIE)})
-        for g in gole_teksty(poz):
-            print(f"  {g}")
+        poz = Pozycja(None, "", h, v, fakty)
         for t in poz.wspolne:
             print(f"  ⇒ Typ meczu – {typ_tekst(t, poz, skut)}")
         if ostateczny_tekst(poz, skut):

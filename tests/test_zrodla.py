@@ -275,6 +275,13 @@ class TestSeriePary(unittest.TestCase):
         self.assertEqual(typy["Ten sam wynik 1:0"], "S1:0")
         self.assertEqual(typy["Poniżej 2.5 bramki (under)"], "U2.5")
 
+    def test_serie_bramkowe_dopiero_od_8_meczow(self):
+        from smaczki.rules import smaczki
+        w = [(2000, "A", 3, 2)] + [(r, "A", 1, 0) for r in range(2001, 2008)]  # 7 meczów z rzędu poniżej 2.5
+        t = "\n".join(f.tekst for f in smaczki(para(w), "A", "B", pd.Timestamp("2026-11-07")))
+        self.assertNotIn("Poniżej 2.5 bramki", t)
+        self.assertNotIn("bez gola (BTTS nie)", t)
+
     def test_gosc_wygrywa_seria_2(self):
         from smaczki.rules import smaczki
         w = [(1990, "A", 3, 0)] + [(r, "A", 0, 1) for r in range(1991, 1997)] + \
@@ -336,9 +343,9 @@ class TestTypy(unittest.TestCase):
         self.assertEqual(typy_wspolne([Fakt(1, "", typ="1X"), Fakt(1, "", typ="1")])[0].typ, "1")
         self.assertIsNone(typy_wspolne([Fakt(1, "", typ="O2.5"), Fakt(1, "", typ="U2.5")])[0].typ)
 
-    def test_ostateczny_typ_i_gole(self):
-        from smaczki.report import gole_teksty, ostateczny_tekst
-        from smaczki.rules import gole_pary, typ_ostateczny
+    def test_ostateczny_typ(self):
+        from smaczki.report import ostateczny_tekst
+        from smaczki.rules import typ_ostateczny
         from smaczki.rules import typy_wspolne as typy_wspolne_
         fakty = [Fakt(37, "6 remisów", typ="X", n=6), Fakt(22, "x2", typ="X2", n=10),
                  Fakt(30, "under 11", typ="U2.5", n=11), Fakt(45, "wynik", typ="S0:0", n=4)]
@@ -358,12 +365,6 @@ class TestTypy(unittest.TestCase):
         self.assertIsNone(typ_ostateczny([Fakt(0, "Pierwszy mecz")]))
         p = Pozycja(None, "", "A", "B", fakty, kursy={"1": 2.5, "X": 3.2, "2": 3.0, "O2.5": 2.1, "U2.5": 1.75})
         self.assertEqual(ostateczny_tekst(p, None), "OSTATECZNY TYP: Under 2.5 (poniżej 2.5 bramki) · kurs ok. 1.75")
-        h = para([(2000 + i, "A", hg, vg) for i, (hg, vg) in enumerate([(3, 1), (2, 2), (1, 0), (0, 0), (1, 1)])])
-        g = gole_pary(h)
-        self.assertEqual((g["powyzej"], g["ponizej"], g["seria"], g["seria_powyzej"]), (2, 3, 3, False))
-        p.gole = {"u": g}
-        self.assertEqual(gole_teksty(p), ["Gole – u A z B (ostatnie 5): powyżej 2.5 bramki – 2, poniżej 2.5 – 3, "
-                                          "średnio 2.2 gola; teraz 3 mecze z rzędu poniżej 2.5."])
 
     def test_predykcja_na_koniec(self):
         from smaczki.report import predykcja, predykcja_tekst

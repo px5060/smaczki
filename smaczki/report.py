@@ -23,7 +23,6 @@ class Pozycja:
     fakty: list
     ostatni: object = None  # ostatni mecz u gospodarza (wiersz historii) albo None
     wyniki: dict = None     # mecze do podglądu (rules.wyniki_pary)
-    gole: dict = None       # podsumowanie goli pary {"u": ..., "h2h": ...} (rules.gole_pary)
     kursy: tuple = None     # aktualne średnie kursy (1, X, 2), jeśli są
 
     @property
@@ -129,21 +128,6 @@ def typ_tekst(t, p, skut):
     return " · ".join(czesci)
 
 
-def gole_teksty(p):
-    """Linie podsumowania goli pary: mecze u gospodarza i wszystkie mecze pary."""
-    out = []
-    for klucz, gdzie in [("u", f"u {p.h} z {p.v}"), ("h2h", f"wszystkie mecze {p.h} z {p.v}")]:
-        g = (p.gole or {}).get(klucz)
-        if not g:
-            continue
-        kier = "powyżej" if g["seria_powyzej"] else "poniżej"
-        teraz = (f"teraz {mecze(g['seria'])} z rzędu {kier} 2.5" if g["seria"] > 1
-                 else f"ostatni mecz {kier} 2.5")
-        out.append(f"Gole – {gdzie} (ostatnie {g['meczow']}): powyżej 2.5 bramki – {g['powyzej']}, "
-                   f"poniżej 2.5 – {g['ponizej']}, średnio {g['srednio']:.1f} gola; {teraz}.")
-    return out
-
-
 def ostateczny_tekst(p, skut):
     """Jeden typ na mecz: typ najdłuższej serii (potem najwyższy kurs) z kursem i wynikiem w przeszłości."""
     t = p.ostateczny
@@ -217,8 +201,6 @@ def raport_txt(pozycje, info, tytul, wszystkie=False, po_dniach=False):
         linie.append(f"   ({_ostatni_txt(p)})")
         for f in p.fakty[:C.MAKS_FAKTOW]:
             linie.append(f"   • {f.tekst}" + (f"  [{_krotko(f.typ)}]" if f.typ else ""))
-        for g in gole_teksty(p):
-            linie.append(f"   {g}")
         for t in p.wspolne:
             linie.append(f"   ⇒ Typ meczu – {typ_tekst(t, p, info.get('skutecznosc'))}")
         ost = ostateczny_tekst(p, info.get("skutecznosc"))
@@ -271,14 +253,12 @@ padding:0 .35rem;white-space:nowrap}
 .typy b{display:block;font-size:.78rem;color:var(--muted);margin-bottom:.15rem}
 .typy div{margin:.15rem 0}
 .typy .ost{margin-top:.45rem;padding-top:.4rem;border-top:1px solid var(--line);font-weight:650;color:var(--ink)}
-.gole{font-size:.78rem;color:var(--muted);margin:.45rem 0 0}
 .predykcja{border:2px solid var(--accent);border-radius:14px;padding:.8rem .9rem;margin:1.6rem 0 .6rem;
 background:var(--card)}
 .predykcja b{display:block;color:var(--accent);font-size:.8rem;text-transform:uppercase;letter-spacing:.04em}
 .predykcja .pm{font-weight:650;margin:.3rem 0 .15rem}
 .predykcja .pt{font-weight:650;font-size:1.05rem}
 .predykcja .pw{font-size:.8rem;color:var(--muted);margin-top:.3rem}
-.gole div{margin:.1rem 0}
 details>summary{cursor:pointer;color:var(--accent);font-size:.88rem;font-weight:600;margin-top:.5rem;
 list-style-position:outside;padding:.15rem 0}
 details details>summary{color:var(--ink);font-weight:550;margin-top:.7rem}
@@ -386,16 +366,14 @@ def _karta(p, skut=None):
     fakty = "".join(f'<li class="{"mocny" if f.waga >= C.PROG_DNIA else ""}">{e(f.tekst)}'
                     + (f' <span class="tag">{e(_krotko(f.typ))}</span>' if f.typ else "") + "</li>"
                     for f in p.fakty[:C.MAKS_FAKTOW])
-    gole = "".join(f"<div>{e(g)}</div>" for g in gole_teksty(p))
-    gole_html = f'<div class="gole">{gole}</div>' if gole else ""
     typy = "".join(f"<div>{e(typ_tekst(t, p, skut))}</div>" for t in p.wspolne)
     ost = ostateczny_tekst(p, skut)
     if ost:
         typy += f'<div class="ost">{e(ost)}</div>'
     if typy:
-        fakty_html_typy = gole_html + f'<div class="typy"><b>Typ meczu</b>{typy}</div>'
+        fakty_html_typy = f'<div class="typy"><b>Typ meczu</b>{typy}</div>'
     else:
-        fakty_html_typy = gole_html
+        fakty_html_typy = ""
     klasa = "card star" if p.dluga_historia else ("card" if p.fakty else "card plain")
     return (f'<div class="{klasa}">'
             f'<div class="top"><span class="chip">{e(p.liga)}</span><span>{godz}</span>{gw}</div>'
