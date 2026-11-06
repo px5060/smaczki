@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from . import config as C
-from .rules import fmt, mecze, odmiana
+from .rules import fmt, mecze, odmiana, typy_wspolne
 
 DNI = ["poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota", "niedziela"]
 DNI_KROTKO = ["pn", "wt", "śr", "czw", "pt", "sob", "nd"]
@@ -32,6 +32,10 @@ class Pozycja:
     @property
     def dluga_historia(self):
         return self.waga >= C.PROG_DNIA
+
+    @property
+    def wspolne(self):
+        return typy_wspolne(self.fakty)
 
     @property
     def dzien(self):
@@ -72,31 +76,64 @@ def _podsumowanie(pozycje):
 
 
 OPIS_TYPU = {"1": "wygra gospodarz", "X": "remis", "2": "wygra gość",
-             "1X": "gospodarz nie przegra", "X2": "gość nie przegra", "12": "nie będzie remisu"}
+             "1X": "gospodarz nie przegra", "X2": "gość nie przegra", "12": "nie będzie remisu",
+             "O2.5": "co najmniej 3 gole", "U2.5": "najwyżej 2 gole",
+             "BTTS": "obie drużyny strzelą", "noBTTS": "co najmniej jedna nie strzeli"}
+NAZWA_TYPU = {"O2.5": "Over 2.5", "U2.5": "Under 2.5", "BTTS": "BTTS tak", "noBTTS": "BTTS nie"}
+
+
+def nazwa_typu(typ):
+    if typ.startswith("S"):
+        return f"dokładny wynik {typ[1:]}"
+    return f"{NAZWA_TYPU.get(typ, typ)} ({OPIS_TYPU[typ]})"
 
 
 def kurs_typu(kursy, typ):
-    """Kurs typu z kursów 1X2; podwójna szansa = 1 / (1/k_a + 1/k_b)."""
-    k = dict(zip("1X2", kursy))
-    return k[typ] if len(typ) == 1 else 1.0 / (1.0 / k[typ[0]] + 1.0 / k[typ[1]])
+    """Kurs typu albo None (podwójna szansa wyliczana z kursów 1X2)."""
+    if not kursy:
+        return None
+    if typ in kursy:
+        return kursy[typ]
+    if typ in ("1X", "X2", "12") and all(c in kursy for c in "1X2"):
+        # podwójna szansa z kursów 1X2: prawdopodobieństwa bez marży + połowa marży (jak na rynku 2-wynikowym)
+        suma = sum(1.0 / kursy[c] for c in "1X2")
+        p = (1.0 / kursy[typ[0]] + 1.0 / kursy[typ[1]]) / suma
+        return max(1.01, 1.0 / (p + (suma - 1.0) / 2))
+    return None
 
 
 def _procent(x):
     return f"{x * 100:+.0f}%".replace("-", "−")
 
 
-def typ_tekst(f, p, skut):
-    """'Typ: 1X (gospodarz nie przegra) · kurs ok. 1.25 · w przeszłości 73% trafień, zwrot −8% (6048 typów)'."""
-    if not f.typ:
-        return ""
-    czesci = [f"Typ: {f.typ} ({OPIS_TYPU[f.typ]})"]
-    if p.kursy:
-        czesci.append(f"kurs ok. {kurs_typu(p.kursy, f.typ):.2f}")
-    st = ((skut or {}).get("reguly") or {}).get(f.regula)
-    if st:
+RYNEK = {"1X2": "1X2", "gole": "Gole", "BTTS": "Obie strzelą", "wynik": "Wynik"}
+
+
+def _krotko(typ):
+    return f"wynik {typ[1:]}" if typ.startswith("S") else NAZWA_TYPU.get(typ, typ)
+
+
+def typ_tekst(t, p, skut):
+    """Typ meczu na rynku t (TypWspolny) z kursem i wynikiem takiego typu w przeszłości."""
+    rynek = RYNEK[t.rynek]
+    if t.typ is None:
+        return f"{rynek}: serie się wykluczają ({', '.join(_krotko(x) for x in t.skladowe)}) – bez typu"
+    czesci = [f"{rynek}: {nazwa_typu(t.typ)}"]
+    if len(t.skladowe) > 1:
+        rozne = list(dict.fromkeys(t.skladowe))
+        czesci[0] += (f" – część wspólna serii {', '.join(_krotko(x) for x in rozne)}" if len(rozne) > 1
+                      else f" – zgodny z {odmiana(len(t.skladowe), 'serią', 'seriami', 'seriami')}")
+    k = kurs_typu(p.kursy, t.typ)
+    if k:
+        czesci.append(f"kurs ok. {k:.2f}")
+    st = ((skut or {}).get("wspolne") or {}).get(t.klucz)
+    if st and st.get("typow", 0) >= 30:
         typow = odmiana(st["typow"], "typ", "typy", "typów").replace(str(st["typow"]), _tys(st["typow"]), 1)
-        czesci.append(f"w przeszłości {st['trafione'] * 100:.0f}% trafień, zwrot {_procent(st['zwrot'])} "
-                      f"({typow} od {skut['okres'][:7]})")
+        if st.get("zwrot") is not None:
+            wynik = f"zwrot {_procent(st['zwrot'])}"
+        else:
+            wynik = f"przeciętnie {st['przecietnie'] * 100:.0f}%, brak kursów w danych"
+        czesci.append(f"w przeszłości {st['trafione'] * 100:.0f}% trafień, {wynik} ({typow} od {skut['okres'][:7]})")
     return " · ".join(czesci)
 
 
@@ -131,10 +168,9 @@ def raport_txt(pozycje, info, tytul, wszystkie=False, po_dniach=False):
         linie.append(f"{nag}  {p.h} – {p.v}{gw}" if nag else f"{p.h} – {p.v}{gw}")
         linie.append(f"   ({_ostatni_txt(p)})")
         for f in p.fakty[:C.MAKS_FAKTOW]:
-            linie.append(f"   • {f.tekst}")
-            t = typ_tekst(f, p, info.get("skutecznosc"))
-            if t:
-                linie.append(f"     → {t}")
+            linie.append(f"   • {f.tekst}" + (f"  [{_krotko(f.typ)}]" if f.typ else ""))
+        for t in p.wspolne:
+            linie.append(f"   ⇒ Typ meczu – {typ_tekst(t, p, info.get('skutecznosc'))}")
         linie.append("")
     if not pozycje:
         linie.append("Brak meczów 4 lig angielskich w tym okresie.")
@@ -171,7 +207,11 @@ h3{font-size:.9rem;color:var(--muted);font-weight:600;margin:1.1rem 0 .3rem}
 ul{margin:.2rem 0 0;padding-left:1.1rem}
 li{margin:.25rem 0}
 li.mocny{font-weight:600}
-.typ{font-weight:400;font-size:.8rem;color:var(--muted);margin:.1rem 0 .3rem}
+.tag{font-weight:500;font-size:.72rem;color:var(--muted);background:var(--chip);border-radius:6px;
+padding:0 .35rem;white-space:nowrap}
+.typy{background:var(--chip);border-radius:10px;padding:.5rem .65rem;margin:.55rem 0 .1rem;font-size:.82rem}
+.typy b{display:block;font-size:.78rem;color:var(--muted);margin-bottom:.15rem}
+.typy div{margin:.15rem 0}
 details>summary{cursor:pointer;color:var(--accent);font-size:.88rem;font-weight:600;margin-top:.5rem;
 list-style-position:outside;padding:.15rem 0}
 details details>summary{color:var(--ink);font-weight:550;margin-top:.7rem}
@@ -272,14 +312,19 @@ def _karta(p, skut=None):
     gw = '<span class="badge">★ długa historia</span>' if p.dluga_historia else ""
     godz = f"{p.data:%H:%M}" if p.data and (p.data.hour, p.data.minute) != (0, 0) else ""
     fakty = "".join(f'<li class="{"mocny" if f.waga >= C.PROG_DNIA else ""}">{e(f.tekst)}'
-                    + (f'<div class="typ">{e(typ_tekst(f, p, skut))}</div>' if f.typ else "") + "</li>"
+                    + (f' <span class="tag">{e(_krotko(f.typ))}</span>' if f.typ else "") + "</li>"
                     for f in p.fakty[:C.MAKS_FAKTOW])
+    typy = "".join(f"<div>{e(typ_tekst(t, p, skut))}</div>" for t in p.wspolne)
+    if typy:
+        fakty_html_typy = f'<div class="typy"><b>Typ meczu</b>{typy}</div>'
+    else:
+        fakty_html_typy = ""
     klasa = "card star" if p.dluga_historia else ("card" if p.fakty else "card plain")
     return (f'<div class="{klasa}">'
             f'<div class="top"><span class="chip">{e(p.liga)}</span><span>{godz}</span>{gw}</div>'
             f'<div class="teams">{e(p.h)} – {e(p.v)}</div>'
             f'<div class="last">{e(_ostatni_txt(p))}</div>'
-            + (f"<ul>{fakty}</ul>" if fakty else "") + _wyniki_html(p) + "</div>")
+            + (f"<ul>{fakty}</ul>" if fakty else "") + fakty_html_typy + _wyniki_html(p) + "</div>")
 
 
 def _tys(n):
@@ -314,12 +359,13 @@ def _dane_html(info):
     li.append("Kontrola: w sezonach 1993/94, 2000/01, 2010/11 i 2020/21–2024/25 wyniki i daty z archiwum zgadzają się "
               "z football-data.co.uk (1 różnica na ok. 16 tys. meczów: Bristol Rovers – Barnet 26.03.1994).")
     skut = info.get("skutecznosc")
-    if skut:
-        b = skut["bazowe"]
-        g = skut["glowny_typ"]
-        li.append(f"<b>Typy:</b> zakład zgodny z serią (zakłada, że seria potrwa). Sprawdzone na {_mecze_tys(skut['meczow'])} "
-                  f"z sezonów {skut['okres']} ze średnimi kursami rynkowymi: najmocniejszy typ przy każdym meczu "
-                  f"trafiał w {g['trafione'] * 100:.0f}% i dawał zwrot {_procent(g['zwrot'])} na postawioną złotówkę; "
+    if skut and skut.get("wspolny_1X2"):
+        b = {t: x for t, x in skut["bazowe"].items() if x.get("zwrot") is not None}
+        g = skut["wspolny_1X2"]
+        li.append(f"<b>Typ meczu:</b> część wspólna typów ze wszystkich serii pary (zakłada, że serie potrwają), osobno "
+                  f"dla 1X2 i goli. Sprawdzone na {_mecze_tys(skut['meczow'])} z sezonów {skut['okres']} ze średnimi "
+                  f"kursami rynkowymi: typ meczu 1X2 trafiał w {g['trafione'] * 100:.0f}% i dawał zwrot "
+                  f"{_procent(g['zwrot'])} na postawioną złotówkę; "
                   f"obstawianie wszystkich meczów na ślepo: od {_procent(max(x['zwrot'] for x in b.values()))} "
                   f"do {_procent(min(x['zwrot'] for x in b.values()))}. Bukmacherzy znają te serie – to nie są typy "
                   "z przewagą nad kursem.")
@@ -379,6 +425,7 @@ def powiadomienie(pozycje, dzien):
     for p in wybrane:
         godz = f"{p.data:%H:%M} " if p.data and (p.data.hour, p.data.minute) != (0, 0) else ""
         f = p.fakty[0]
-        typ = f" → typ {f.typ}" + (f" (kurs ok. {kurs_typu(p.kursy, f.typ):.2f})" if p.kursy else "") if f.typ else ""
-        linie.append(f"{godz}{p.h} – {p.v}: {f.tekst}{typ}")
+        typy = [f"{_krotko(t.typ)}" + (f" ({kurs_typu(p.kursy, t.typ):.2f})" if kurs_typu(p.kursy, t.typ) else "")
+                for t in p.wspolne if t.typ and t.rynek != "wynik"]
+        linie.append(f"{godz}{p.h} – {p.v}: {f.tekst}" + (f" → typ: {', '.join(typy)}" if typy else ""))
     return tytul, "\n".join(linie)

@@ -18,7 +18,45 @@ class Fakt:
 
 
 # Zakład zgodny z serią (perspektywa gospodarza nadchodzącego meczu): seria trwa dalej.
-TYP_ZAKLADU = {"W": "1", "R": "X", "P": "2", "nieP": "1X", "nieW": "X2", "nieR": "12"}
+TYP_ZAKLADU = {"W": "1", "R": "X", "P": "2", "nieP": "1X", "nieW": "X2", "nieR": "12",
+               "O": "O2.5", "U": "U2.5", "B": "BTTS", "nB": "noBTTS"}  # + "S": "Sa:b" (dokładny wynik)
+
+
+TYPY_1X2 = ("1", "X", "2", "1X", "X2", "12")
+
+
+@dataclass
+class TypWspolny:
+    """Jeden typ meczu na danym rynku: część wspólna typów ze wszystkich serii (None = serie się wykluczają)."""
+    rynek: str          # "1X2", "gole" (over/under 2.5), "BTTS", "wynik" (dokładny wynik)
+    typ: str | None
+    skladowe: list      # typy z poszczególnych serii, np. ["X", "X2", "1X"]
+
+    @property
+    def klucz(self):
+        return "wynik" if self.rynek == "wynik" else f"{self.rynek}:{self.typ}"
+
+
+def typy_wspolne(fakty):
+    """Typ meczu na każdym rynku, na którym są serie. 1X2: część wspólna wyników dopuszczanych przez serie
+    (np. X ∩ X2 ∩ 1X = X); pozostałe rynki: typ, jeśli wszystkie serie wskazują to samo."""
+    out = []
+    z1x2 = [f.typ for f in fakty if f.typ in TYPY_1X2]
+    if z1x2:
+        wspolne = set("1X2")
+        for t in z1x2:
+            wspolne &= set(t)
+        out.append(TypWspolny("1X2", "".join(c for c in "1X2" if c in wspolne) or None, z1x2))
+    for rynek, nalezy in [("gole", lambda t: t in ("O2.5", "U2.5")), ("BTTS", lambda t: t in ("BTTS", "noBTTS")),
+                          ("wynik", lambda t: t.startswith("S"))]:
+        z = [f.typ for f in fakty if f.typ and nalezy(f.typ)]
+        if z:
+            out.append(TypWspolny(rynek, z[0] if len(set(z)) == 1 else None, z))
+    return out
+
+
+def typ_serii(s):
+    return f"S{s.wynik[0]}:{s.wynik[1]}" if s.typ == "S" else TYP_ZAKLADU[s.typ]
 
 
 def fmt(d):
@@ -79,19 +117,37 @@ TYPY = {"W": "W", "R": "R", "P": "P", "nieP": "WR", "nieW": "RP", "nieR": "WP"}
 # (np. "bez porażki w 6" przy "6 wygranych z rzędu") – z wyjątkiem "nigdy nie wygrał".
 ZAWIERA = {"nieP": "WR", "nieW": "RP", "nieR": "WP"}
 
+# Serie bramkowe: O = co najmniej 3 gole (over 2.5), U = najwyżej 2 (under 2.5), B = obie strzeliły,
+# nB = co najmniej jedna bez gola, S = ten sam dokładny wynik.
+TYPY_BRAMEK = ("O", "U", "B", "nB")
+
 _STAWKI = {}
+_WYNIKI = {}  # id(stawki) -> {(sezon, gole gosp., gole gości): odsetek}; poza .attrs, bo pandas kopiuje attrs
 
 
 def stawki_sezonow(hist):
-    """Odsetek wygranych gospodarzy (1), remisów (X) i wygranych gości (2) w każdym sezonie, 4 ligi razem."""
+    """Odsetki w każdym sezonie (4 ligi razem): 1, X, 2, O (over 2.5), B (obie strzeliły).
+    Odsetki dokładnych wyników: wyniki_sezonow(stawki)."""
     klucz = (id(hist), len(hist))
     if klucz not in _STAWKI:
         if len(_STAWKI) > 16:
             _STAWKI.clear()
-        z = np.sign(hist.hgoal.to_numpy() - hist.vgoal.to_numpy())
-        df = pd.DataFrame({"s": hist.Season.to_numpy(), "1": z > 0, "X": z == 0, "2": z < 0})
-        _STAWKI[klucz] = df.groupby("s")[["1", "X", "2"]].mean()
+        hg, vg = hist.hgoal.to_numpy(), hist.vgoal.to_numpy()
+        z = np.sign(hg - vg)
+        df = pd.DataFrame({"s": hist.Season.to_numpy(), "1": z > 0, "X": z == 0, "2": z < 0,
+                           "O": hg + vg >= 3, "B": (hg > 0) & (vg > 0), "hg": hg, "vg": vg})
+        st = df.groupby("s")[["1", "X", "2", "O", "B"]].mean()
+        ile = df.groupby("s").size()
+        wyn = df.groupby(["s", "hg", "vg"]).size()
+        if len(_WYNIKI) > 16:
+            _WYNIKI.clear()
+        _WYNIKI[id(st)] = (wyn / wyn.index.get_level_values(0).map(ile).to_numpy()).to_dict()
+        _STAWKI[klucz] = st
     return _STAWKI[klucz]
+
+
+def wyniki_sezonow(stawki):
+    return _WYNIKI.get(id(stawki), {})
 
 
 @dataclass
@@ -103,6 +159,7 @@ class Seria:
     przerwal: object   # ostatni mecz przed serią (z innym wynikiem); None = seria obejmuje całą historię
     wszystkie: int     # liczba meczów w tym układzie
     ogolna: object = None  # tak samo długa seria ogólna wchłonięta przez tę (np. "bez wygranej gościa")
+    wynik: tuple = None    # dla serii "S": powtarzający się wynik (gole drużyny, gole rywala)
 
     @property
     def nigdy(self):
@@ -146,8 +203,47 @@ def serie(df, druzyna, stawki):
     return out
 
 
+def _od_konca(warunek):
+    n = 0
+    while n < len(warunek) and warunek[len(warunek) - 1 - n]:
+        n += 1
+    return n
+
+
+def serie_bramek(df, druzyna, stawki):
+    """Bieżące serie bramkowe w meczach df: over/under 2.5, obie strzeliły / nie, ten sam dokładny wynik."""
+    if not len(df):
+        return {}
+    dom = df.home.to_numpy() == druzyna
+    hg, vg = df.hgoal.to_numpy(), df.vgoal.to_numpy()
+    sezony = df.Season.to_numpy()
+    sez = stawki.reindex(sezony)
+    p_o = sez["O"].fillna(C.STAWKI_DOMYSLNE["O"]).to_numpy()
+    p_b = sez["B"].fillna(C.STAWKI_DOMYSLNE["B"]).to_numpy()
+    btts = (hg > 0) & (vg > 0)
+    warunki = {"O": (hg + vg >= 3, p_o), "U": (hg + vg <= 2, 1 - p_o), "B": (btts, p_b), "nB": (~btts, 1 - p_b)}
+    g, s = np.where(dom, hg, vg), np.where(dom, vg, hg)  # wynik z perspektywy drużyny
+    wynik = (int(g[-1]), int(s[-1]))
+    wyniki_st = wyniki_sezonow(stawki)
+    p_wyn = np.array([wyniki_st.get((se, a, b) if d else (se, b, a), C.WYNIK_DOMYSLNY)
+                      for se, d, a, b in zip(sezony, dom, g, s)])
+    warunki["S"] = ((g == wynik[0]) & (s == wynik[1]), p_wyn)
+    n_all = len(hg)
+    out = {}
+    for typ, (war, p) in warunki.items():
+        n = _od_konca(war)
+        if n == 0:
+            continue
+        szansa = np.clip(p[n_all - n:], 1e-6, 1.0)
+        out[typ] = Seria(typ, n, float(-np.log10(szansa).sum()), df.iloc[n_all - n],
+                         df.iloc[n_all - n - 1] if n < n_all else None, n_all,
+                         wynik=wynik if typ == "S" else None)
+    return out
+
+
 def _istotna(s, ref):
-    if s.n >= C.MIN_SERIA and s.rzadkosc >= C.MIN_RZADKOSC:
+    min_n = C.MIN_SERIA_WYNIKU if s.typ == "S" else C.MIN_SERIA
+    if s.n >= min_n and s.rzadkosc >= C.MIN_RZADKOSC:
         return True
     # "nie wygrał od X r." / "nigdy nie wygrał" – także przy mniejszej rzadkości, jeśli trwa długo
     if s.typ in ("nieP", "nieW") and s.n >= C.MIN_MECZOW_OD_LAT and _lata(s.od, ref) >= C.MIN_LAT_BEZ_WYGRANEJ:
@@ -224,6 +320,28 @@ def _tekst_h2h(s, h, v):
                     f"ostatni remis {ost}."}[s.typ]
 
 
+def _tekst_bramek(s, h, v, h2h=False):
+    """Serie bramkowe w meczach u gospodarza (h2h=False) albo we wszystkich meczach pary."""
+    n, rok = s.n, s.pierwszy.Date.year
+    if h2h:
+        gdzie = f"między {h} a {v}"
+        od = f" (u siebie i na wyjeździe) – wszystkie mecze od {rok} r." if s.nigdy \
+            else f" (u siebie i na wyjeździe, od {rok} r.)."
+    else:
+        gdzie = f"u {h} z {v}"
+        od = f" – wszystkie mecze od {rok} r." if s.nigdy else f" (od {rok} r.)."
+    if s.typ == "S":
+        a, b = s.wynik
+        if not h2h or a == b:
+            wynik = f"{a}:{b}"
+        else:
+            wynik = f"{a}:{b} dla {h}" if a > b else f"{b}:{a} dla {v}"
+        return f"Ten sam wynik {wynik} w {meczach(n)} z rzędu {gdzie}{od}"
+    co = {"O": "Co najmniej 3 gole (over 2.5)", "U": "Najwyżej 2 gole (under 2.5)",
+          "B": "Obie drużyny strzelały", "nB": "Co najmniej jedna drużyna bez gola (BTTS nie)"}[s.typ]
+    return f"{co} w {meczach(n)} z rzędu {gdzie}{od}"
+
+
 def smaczki(hist, h, v, ref=None):
     """Lista Fakt (najciekawsze pierwsze) dla meczu h (gospodarz) – v (gość). Tylko pojedynki tej pary.
 
@@ -255,6 +373,10 @@ def fakty_pary(h2h, h, v, ref, st):
             if _istotna(s, ref):
                 out.append(Fakt(_waga(s, ref), tekst(s, h, v), 10 ** -s.rzadkosc,
                                 TYP_ZAKLADU[s.typ], f"{uklad}:{s.typ}", s.n))
+        for s in serie_bramek(df, h, st).values():
+            if _istotna(s, ref):
+                out.append(Fakt(_waga(s, ref), _tekst_bramek(s, h, v, uklad == "h2h"), 10 ** -s.rzadkosc,
+                                typ_serii(s), f"{uklad}:{s.typ}", s.n))
 
     out.sort(reverse=True)
     return out

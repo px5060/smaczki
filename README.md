@@ -105,7 +105,8 @@ Opcje wspólne: `--zrodlo auto|fd|api|brak`, `--dane FOLDER` (domyślnie `dane`)
 
 Liczone są **tylko pojedynki tych dwóch drużyn** (mecze ligowe sprzed dnia meczu), bez formy z innymi rywalami.
 Dla każdej pary aplikacja sprawdza bieżące serie (od ostatniego meczu wstecz) wszystkich wyników 1X2,
-z perspektywy gospodarza i gościa, w dwóch układach:
+z perspektywy gospodarza i gościa, a także serie bramkowe (under/over 2.5, obie strzelą, ten sam wynik),
+w dwóch układach:
 
 | Seria | Mecze u gospodarza z tym rywalem | Wszystkie mecze pary (u siebie i na wyjeździe) |
 |---|---|---|
@@ -115,13 +116,17 @@ z perspektywy gospodarza i gościa, w dwóch układach:
 | gość nie wygrał (1X) | „Bolton Wanderers nie wygrał u Derby County od 1981 r. (16 meczów) – ostatnio 23.09.1981, 0:2.” | „Swansea City nie wygrał z Birmingham City od 2020 r. (10 meczów, u siebie i na wyjeździe) – ostatnio …” |
 | gospodarz nie wygrał (X2) | „Blackburn Rovers nie wygrał u siebie z West Ham United od 2005 r. (5 meczów) – ostatnio 10.12.2005, 3:2.” | „Cardiff City nie wygrał z Burnley od 2012 r. (9 meczów, u siebie i na wyjeździe) – …” |
 | bez remisu (12) | „Bez remisu w meczach u Fulham z Newcastle United od 1984 r. (19 meczów) – ostatni remis 03.03.1984, 2:2.” | „Bez remisu w meczach X z Y od … (… meczów, u siebie i na wyjeździe)” |
+| under 2.5 | „Najwyżej 2 gole (under 2.5) w 7 meczach z rzędu u West Bromwich Albion z Millwall (od 2018 r.).” | „Najwyżej 2 gole (under 2.5) w 5 meczach z rzędu między Blackburn Rovers a West Ham United (u siebie i na wyjeździe, od 2009 r.).” |
+| over 2.5 | „Co najmniej 3 gole (over 2.5) w 5 meczach z rzędu u Preston North End z Southampton (od 2007 r.).” | jak obok, dla wszystkich meczów pary |
+| obie strzelą / co najmniej jedna bez gola | „Obie drużyny strzelały w 7 meczach z rzędu u Preston North End z Southampton (od 1966 r.).” | jak obok |
+| ten sam dokładny wynik (od 3 meczów) | „Ten sam wynik 0:0 w 4 meczach z rzędu u West Bromwich Albion z Millwall (od 2023 r.).” | „Ten sam wynik 1:0 dla X w 3 meczach z rzędu między X a Y …” |
 
 Gdy seria obejmuje całą historię: „Fulham NIGDY nie wygrał ligowo u Arsenal (31 meczów od 1914 r.)”,
 „Mecze u X z Y nigdy nie skończyły się remisem”. Do tego „pierwszy ligowy mecz tych drużyn w historii” i
 „pierwszy mecz od X lat”.
 
 **Pokazywane są wszystkie serie pary**, które spełniają próg (bez limitu na mecz):
-- co najmniej 4 mecze i seria rzadsza niż ok. 1 na 20, albo
+- co najmniej 4 mecze (ten sam dokładny wynik: 3) i seria rzadsza niż ok. 1 na 20, albo
 - „nie wygrał” trwające co najmniej 10 lat i co najmniej 5 meczów.
 
 Dwie serie złożone z dokładnie tych samych meczów są łączone w jedno zdanie, np. „Manchester United wygrał u siebie z Luton
@@ -131,48 +136,60 @@ Town 19 razy z rzędu (od 1899 r.). Luton Town nie wygrał u Manchester United o
 grano te mecze, i im dłużej trwa, tym wyżej. Dzięki temu 16 meczów bez wygranej stoi wyżej niż 4, a seria remisów
 porównuje się uczciwie z serią wygranych. ★ = waga ≥ 25 (`PROG_DNIA`). Wszystkie progi są w `smaczki/config.py`.
 
-## Typy zakładów przy smaczkach
+## Typ meczu (zakład)
 
-Przy każdej serii aplikacja podaje **typ zgodny z serią**, czyli zakład na to, że seria potrwa. Gość nie wygrał u
-gospodarza → 1X, gospodarz nie wygrał u siebie → X2, wygrane gospodarza z rzędu → 1, remisy z rzędu → X, wygrane
-gościa z rzędu → 2, bez remisu → 12. Obok jest **aktualny kurs** (średnia rynkowa z football-data.co.uk; kurs
-podwójnej szansy wyliczony z kursów 1X2 jako 1 / (1/k₁ + 1/k₂)) i **jak taki typ wypadał w przeszłości**.
+Przy każdym smaczku jest krótka etykieta: jaki wynik zakłada ta seria, jeśli potrwa (np. [X2], [Under 2.5]).
+Pod smaczkami jest **jeden typ meczu na każdy rynek**:
+- **1X2:** część wspólna wszystkich serii. Przykład: seria „6 remisów z rzędu” (X), „WBA nie wygrał z Millwall” (X2)
+  i „Millwall nie wygrał u WBA” (1X) nie przeczą sobie, bo wszystkie dopuszczają remis, więc typ meczu to **X**.
+  Gdy serie naprawdę się wykluczają (np. 1 i X2), aplikacja pisze „serie się wykluczają – bez typu”.
+- **Gole:** Under albo Over 2.5, gdy serie wskazują to samo.
+- **Obie strzelą:** tak albo nie.
+- **Dokładny wynik:** gdy ten sam wynik padł co najmniej 3 razy z rzędu.
 
-Przy „pierwszym meczu od X lat” typu nie ma.
+Obok jest **aktualny kurs** (średnia rynkowa z football-data.co.uk; podwójna szansa wyliczona z kursów 1X2)
+i **jak taki typ meczu wypadał w przeszłości**. Kursów na „obie strzelą” i dokładny wynik w danych nie ma,
+więc tam jest tylko skuteczność w porównaniu z przeciętną.
 
-**Jak liczona jest skuteczność.** Na 43 063 meczach z sezonów 2005/06–2026/27 serie były liczone tylko z meczów
-sprzed danego meczu (tak, jak w dniu meczu). Potem sprawdzane było, czy typ wszedł i ile dał przy ówczesnym średnim
-kursie (stawka 1 zł na typ).
+**Jak liczona jest skuteczność.** Na 43 063 meczach z sezonów 2005/06–2026/27 serie były liczone tylko
+z meczów sprzed danego meczu (tak, jak w dniu meczu). Potem sprawdzane było, czy typ meczu wszedł i ile dał przy
+ówczesnym średnim kursie (stawka 1 zł). „Przeciętnie” to częstość takiego wyniku we wszystkich meczach tamtych sezonów.
 
-| Seria → typ | Typów | Trafione | Śr. kurs | Zwrot |
-|---|---|---|---|---|
-| gospodarz wygrał u siebie z rzędu → 1 | 1 810 | 51.5% | 2.00 | −7.3% |
-| remisy z rzędu u gospodarza → X | 202 | 23.3% | 3.45 | −20.1% |
-| gość wygrał u gospodarza z rzędu → 2 | 376 | 44.7% | 2.62 | −2.6% |
-| gość nie wygrał u gospodarza → 1X | 6 048 | 72.8% | 1.29 | −8.4% |
-| gospodarz nie wygrał u siebie → X2 | 1 921 | 62.4% | 1.56 | −7.2% |
-| bez remisu u gospodarza → 12 | 1 258 | 74.5% | 1.27 | −6.0% |
-| gospodarz wygrał z rywalem z rzędu (wszystkie mecze) → 1 | 983 | 58.7% | 1.86 | +0.1% |
-| remisy z rzędu (wszystkie mecze) → X | 204 | 26.0% | 3.43 | −12.4% |
-| gość wygrał z rywalem z rzędu (wszystkie mecze) → 2 | 1 160 | 42.1% | 2.61 | −4.2% |
-| gość nie wygrał z rywalem (wszystkie mecze) → 1X | 2 766 | 75.8% | 1.25 | −7.4% |
-| gospodarz nie wygrał z rywalem (wszystkie mecze) → X2 | 2 976 | 62.6% | 1.51 | −9.5% |
-| bez remisu (wszystkie mecze) → 12 | 1 631 | 73.9% | 1.27 | −6.0% |
-| **najmocniejszy typ przy każdym meczu** | 15 215 | 64.5% | 1.59 | −7.2% |
+| Typ meczu | Typów | Trafione | Przeciętnie | Śr. kurs | Zwrot |
+|---|---|---|---|---|---|
+| 1 (wygra gospodarz) | 2 551 | 52.9% | 43.4% | 1.97 | −5.2% |
+| X (remis) | 536 | 24.2% | 26.5% | 3.43 | −17.9% |
+| 2 (wygra gość) | 1 432 | 41.5% | 30.2% | 2.66 | −4.9% |
+| 1X | 5 799 | 72.2% | 70.0% | 1.32 | −6.7% |
+| X2 | 3 114 | 61.1% | 56.6% | 1.57 | −7.7% |
+| 12 | 1 783 | 73.0% | 73.6% | 1.30 | −4.8% |
+| Under 2.5 | 2 619 | 51.2% | 51.3% | 1.80 | −8.3% |
+| Over 2.5 | 2 527 | 51.6% | 48.7% | 1.88 | −4.4% |
+| BTTS tak | 2 580 | 52.3% | 51.9% | – | brak kursów |
+| BTTS nie | 2 041 | 48.0% | 48.1% | – | brak kursów |
+| dokładny wynik | 531 | 10.2% | 9.7% | – | brak kursów |
+| **1X2 razem** | 15 215 | 62.2% | 57.9% | 1.68 | −6.7% |
+| **1X2 razem, mecze z ★** | 4 899 | 60.6% | 54.0% | 1.76 | −8.2% |
+| **gole razem** | 5 146 | 51.4% | 50.0% | 1.84 | −6.4% |
 
-| Na ślepo, każdy mecz | Trafione | Śr. kurs | Zwrot |
-|---|---|---|---|
-| 1 | 43.4% | 2.42 | −6.0% |
-| X | 26.5% | 3.53 | −8.5% |
-| 2 | 30.1% | 3.69 | −8.1% |
-| 1X | 69.9% | 1.38 | −6.9% |
-| X2 | 56.6% | 1.75 | −7.9% |
-| 12 | 73.5% | 1.28 | −6.0% |
+| Na ślepo, każdy mecz | Typów | Trafione | Przeciętnie | Śr. kurs | Zwrot |
+|---|---|---|---|---|---|
+| 1 | 43 063 | 43.4% | 43.4% | 2.42 | −6.0% |
+| X | 43 063 | 26.5% | 26.5% | 3.53 | −8.5% |
+| 2 | 43 063 | 30.1% | 30.1% | 3.69 | −8.1% |
+| 1X | 43 063 | 69.9% | 69.9% | 1.40 | −5.2% |
+| X2 | 43 063 | 56.6% | 56.6% | 1.75 | −7.4% |
+| 12 | 43 063 | 73.5% | 73.5% | 1.31 | −4.0% |
+| O2.5 | 43 063 | 48.7% | 48.7% | 1.94 | −6.5% |
+| U2.5 | 43 063 | 51.3% | 51.3% | 1.86 | −5.8% |
+| BTTS | 43 063 | 51.9% | 51.9% | – | brak kursów |
+| noBTTS | 43 063 | 48.1% | 48.1% | – | brak kursów |
 
-**Wniosek:** typy zgodne z serią trafiają częściej niż średnia, ale mają odpowiednio niższe kursy. W sumie tracą
-tyle samo, co obstawianie na ślepo (marża bukmachera, ok. 6–8%). Serie remisów nie trwają: po 4 i więcej remisach
-z rzędu kolejny remis padał rzadziej niż przeciętnie. Bukmacherzy znają te serie, więc **to nie są typy z przewagą
-nad kursem**; aplikacja pokazuje je razem z wynikami, żeby było to widać.
+Serie wykluczały się w 0 meczach (1X2) i w 0 meczach (gole).
+
+**Wniosek:** typy z serii trafiają nieco częściej niż przeciętnie, ale kursy już to uwzględniają. W sumie zwrot
+jest podobny jak przy obstawianiu na ślepo (marża bukmachera). Bukmacherzy znają te serie, więc **to nie są typy
+z przewagą nad kursem**; aplikacja pokazuje je razem z wynikami, żeby było to widać.
 
 Przeliczenie (np. po sezonie): `python -m smaczki skutecznosc` – pobiera ok. 100 plików z kursami (raz, potem cache)
 i zapisuje `smaczki/skutecznosc.json`.

@@ -29,7 +29,7 @@ FD_PRZESUNIECIE_GODZIN = 1
 # --- smaczki: serie 1X2 w pojedynkach pary ---
 # Liczone są tylko mecze tych dwóch drużyn, w dwóch układach: mecze u gospodarza z tym rywalem oraz wszystkie
 # mecze ligowe pary (u siebie i na wyjeździe). Serie: wygrane gospodarza (1), remisy (X), wygrane gościa (2),
-# "nie wygrał" (każda ze stron) i "bez remisu".
+# "nie wygrał" (każda ze stron), "bez remisu", over/under 2.5, obie strzelą tak/nie i ten sam dokładny wynik.
 # Kolejność (niewyświetlana): rzadkość serii = -log10(szansy na nią przy typowych wynikach z sezonów, w których
 # grano), żeby 15 meczów bez wygranej stało wyżej niż 4, a seria remisów dała się porównać z serią wygranych.
 MIN_SERIA = 4                  # co najmniej tyle meczów w serii
@@ -42,7 +42,9 @@ MIN_MECZOW_OD_LAT = 5          #   jeśli trwa co najmniej 10 lat i obejmuje co 
 MIN_PRZERWA_LAT = 10           # "pierwszy mecz od X lat" (waga = liczba lat)
 WAGA_PIERWSZEGO_MECZU = 30     # "pierwszy mecz w historii"
 MAKS_FAKTOW = None             # ile faktów pokazać przy meczu (None = wszystkie serie pary)
-STAWKI_DOMYSLNE = {"1": 0.45, "X": 0.26, "2": 0.29}  # gdy brak danych sezonu
+MIN_SERIA_WYNIKU = 3           # "ten sam dokładny wynik" – od 3 meczów z rzędu
+STAWKI_DOMYSLNE = {"1": 0.45, "X": 0.26, "2": 0.29, "O": 0.49, "B": 0.50}  # gdy brak danych sezonu
+WYNIK_DOMYSLNY = 0.05
 
 # Od tej wagi mecz jest "smaczkiem z długą historią": wyróżnienie na stronie i powiadomienie na telefon.
 # Przykłady: "Bolton nie wygrał u Derby od 1981 r. (16 meczów)" ≈ 32, "6 remisów z rzędu" ≈ 37,

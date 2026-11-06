@@ -132,7 +132,8 @@ class TestFootballData(Tmp):
     def test_terminarz(self):
         t = dl.fd_terminarz_z_tekstu(FIXTURES, dt.date(2026, 11, 6), dt.date(2026, 11, 7))
         self.assertEqual([(m.liga, m.home, m.away, m.data, m.kursy) for m in t],
-                         [("Premier League", "Arsenal", "Hull", dt.datetime(2026, 11, 7, 16, 0), (1.25, 6.0, 11.0)),
+                         [("Premier League", "Arsenal", "Hull", dt.datetime(2026, 11, 7, 16, 0),
+                           {"1": 1.25, "X": 6.0, "2": 11.0}),
                           ("League Two", "Walsall", "Barrow", dt.datetime(2026, 11, 6, 20, 45), None)])
 
     def test_wyniki_i_cache(self):
@@ -236,7 +237,7 @@ class TestSeriePary(unittest.TestCase):
     def setUp(self):
         # sztuczna historia ma same mecze A–B; do kolejności bierzemy typowe odsetki 1X2 z config
         typowe = mock.patch("smaczki.rules.stawki_sezonow",
-                            return_value=pd.DataFrame(columns=["1", "X", "2"], dtype=float))
+                            return_value=pd.DataFrame(columns=["1", "X", "2", "O", "B"], dtype=float))
         typowe.start()
         self.addCleanup(typowe.stop)
 
@@ -255,6 +256,21 @@ class TestSeriePary(unittest.TestCase):
         self.assertIn("B nie wygrał z A od 2000 r. (23 mecze, u siebie i na wyjeździe)", t)
         self.assertNotIn("na wyjeździe w", t)  # bez formy z wszystkimi rywalami
 
+    def test_serie_bramkowe(self):
+        from smaczki.rules import smaczki
+        w = [(2000, "A", 3, 2)] + [(r, "A", 1, 0) for r in range(2001, 2009)] + \
+            [(r, "B", 0, 0) for r in range(2001, 2009)]
+        f = smaczki(para(w), "A", "B", pd.Timestamp("2026-11-07"))
+        t = "\n".join(x.tekst for x in f)
+        self.assertIn("Najwyżej 2 gole (under 2.5) w 8 meczach z rzędu u A z B (od 2001 r.).", t)
+        self.assertIn("Najwyżej 2 gole (under 2.5) w 16 meczach z rzędu między A a B "
+                      "(u siebie i na wyjeździe, od 2001 r.).", t)
+        self.assertIn("Ten sam wynik 1:0 w 8 meczach z rzędu u A z B (od 2001 r.).", t)
+        self.assertIn("Co najmniej jedna drużyna bez gola (BTTS nie) w 16 meczach z rzędu między A a B", t)
+        typy = {x.tekst.split(" w ")[0]: x.typ for x in f}
+        self.assertEqual(typy["Ten sam wynik 1:0"], "S1:0")
+        self.assertEqual(typy["Najwyżej 2 gole (under 2.5)"], "U2.5")
+
     def test_gosc_wygrywa_seria_2(self):
         from smaczki.rules import smaczki
         w = [(1990, "A", 3, 0)] + [(r, "A", 0, 1) for r in range(1991, 1997)] + \
@@ -269,25 +285,56 @@ class TestTypy(unittest.TestCase):
     def test_kursy_i_trafienia(self):
         from smaczki.report import kurs_typu
         from smaczki.skutecznosc import trafiony
-        self.assertAlmostEqual(kurs_typu((2.0, 4.0, 4.0), "1"), 2.0)
-        self.assertAlmostEqual(kurs_typu((2.0, 4.0, 4.0), "1X"), 1 / (1 / 2 + 1 / 4))
-        self.assertAlmostEqual(kurs_typu((2.0, 4.0, 4.0), "12"), 1 / (1 / 2 + 1 / 4))
+        k = {"1": 2.0, "X": 4.0, "2": 4.0, "O2.5": 1.9, "U2.5": 1.95}
+        self.assertAlmostEqual(kurs_typu(k, "1"), 2.0)
+        # 1/2 + 1/4 + 1/4 = 1.0 (bez marży) -> kurs uczciwy 1 / 0.75
+        self.assertAlmostEqual(kurs_typu(k, "1X"), 1 / 0.75)
+        self.assertAlmostEqual(kurs_typu(k, "12"), 1 / 0.75)
+        m = {"1": 1.1, "X": 9.0, "2": 25.0}   # wyraźny faworyt: kurs nie spada poniżej 1.01
+        self.assertGreaterEqual(kurs_typu(m, "1X"), 1.01)
+        self.assertEqual(kurs_typu(k, "U2.5"), 1.95)
+        self.assertIsNone(kurs_typu(k, "BTTS"))
+        self.assertIsNone(kurs_typu(k, "S1:0"))
         self.assertTrue(trafiony(1, 1, "X2") and trafiony(0, 2, "X2") and not trafiony(2, 0, "X2"))
         self.assertTrue(trafiony(3, 1, "12") and not trafiony(1, 1, "12"))
+        self.assertTrue(trafiony(2, 1, "O2.5") and not trafiony(2, 0, "O2.5") and trafiony(1, 1, "U2.5"))
+        self.assertTrue(trafiony(1, 1, "BTTS") and not trafiony(2, 0, "BTTS") and trafiony(0, 0, "noBTTS"))
+        self.assertTrue(trafiony(1, 0, "S1:0") and not trafiony(0, 1, "S1:0"))
 
-    def test_typ_przy_smaczku(self):
+    def test_typ_meczu(self):
         from smaczki.report import typ_tekst
-        f = Fakt(32, "Bolton nie wygrał u Derby od 1981 r. (16 meczów).", typ="1X", regula="u:nieP", n=16)
-        p = Pozycja(dt.datetime(2026, 11, 6, 21), "Championship", "Derby County", "Bolton", [f], kursy=(2.0, 4.0, 4.0))
-        skut = {"okres": "2005/06–2026/27", "reguly": {"u:nieP": {"typow": 6048, "trafione": 0.728,
-                                                                 "kurs": 1.29, "zwrot": -0.084}}}
-        self.assertEqual(typ_tekst(f, p, skut), "Typ: 1X (gospodarz nie przegra) · kurs ok. 1.33 · "
+        from smaczki.rules import TypWspolny, typy_wspolne
+        p = Pozycja(dt.datetime(2026, 11, 6, 21), "Championship", "Derby County", "Bolton", [],
+                    kursy={"1": 2.0, "X": 4.0, "2": 4.0, "O2.5": 1.9, "U2.5": 1.95})
+        skut = {"okres": "2005/06–2026/27", "wspolne": {
+            "1X2:1X": {"typow": 6048, "trafione": 0.728, "przecietnie": 0.70, "kurs": 1.29, "zwrot": -0.084},
+            "gole:U2.5": {"typow": 900, "trafione": 0.55, "przecietnie": 0.52, "kurs": 1.8, "zwrot": -0.05},
+            "BTTS:BTTS": {"typow": 500, "trafione": 0.51, "przecietnie": 0.49, "kurs": None, "zwrot": None}}}
+        self.assertEqual(typ_tekst(TypWspolny("1X2", "1X", ["1X"]), p, skut),
+                         "1X2: 1X (gospodarz nie przegra) · kurs ok. 1.33 · "
                          "w przeszłości 73% trafień, zwrot −8% (6\u00a0048 typów od 2005/06)")
-        self.assertEqual(typ_tekst(Fakt(30, "Pierwszy mecz"), p, skut), "")
+        self.assertEqual(typ_tekst(TypWspolny("1X2", "X", ["X", "X2", "1X"]), p, skut),
+                         "1X2: X (remis) – część wspólna serii X, X2, 1X · kurs ok. 4.00")
+        self.assertEqual(typ_tekst(TypWspolny("1X2", None, ["1", "X2"]), p, skut),
+                         "1X2: serie się wykluczają (1, X2) – bez typu")
+        self.assertEqual(typ_tekst(TypWspolny("gole", "U2.5", ["U2.5", "U2.5"]), p, skut),
+                         "Gole: Under 2.5 (najwyżej 2 gole) – zgodny z 2 seriami · kurs ok. 1.95 · "
+                         "w przeszłości 55% trafień, zwrot −5% (900 typów od 2005/06)")
+        self.assertEqual(typ_tekst(TypWspolny("BTTS", "BTTS", ["BTTS"]), p, skut),
+                         "Obie strzelą: BTTS tak (obie drużyny strzelą) · w przeszłości 51% trafień, "
+                         "przeciętnie 49%, brak kursów w danych (500 typów od 2005/06)")
+        self.assertEqual(typ_tekst(TypWspolny("wynik", "S1:1", ["S1:1"]), p, skut), "Wynik: dokładny wynik 1:1")
+        # część wspólna: X ∩ X2 ∩ 1X = X; 1 ∩ 1X = 1; gole i BTTS osobno
+        fakty = [Fakt(30, "a", typ="X"), Fakt(20, "b", typ="X2"), Fakt(10, "c", typ="1X"),
+                 Fakt(15, "d", typ="U2.5"), Fakt(12, "e", typ="noBTTS"), Fakt(40, "f")]
+        self.assertEqual([(t.rynek, t.typ) for t in typy_wspolne(fakty)],
+                         [("1X2", "X"), ("gole", "U2.5"), ("BTTS", "noBTTS")])
+        self.assertEqual(typy_wspolne([Fakt(1, "", typ="1X"), Fakt(1, "", typ="1")])[0].typ, "1")
+        self.assertIsNone(typy_wspolne([Fakt(1, "", typ="O2.5"), Fakt(1, "", typ="U2.5")])[0].typ)
 
     def test_kazda_seria_ma_typ(self):
-        from smaczki.rules import TYP_ZAKLADU, TYPY
-        self.assertEqual(set(TYP_ZAKLADU), set(TYPY))
+        from smaczki.rules import TYP_ZAKLADU, TYPY, TYPY_BRAMEK
+        self.assertEqual(set(TYP_ZAKLADU), set(TYPY) | set(TYPY_BRAMEK))
 
 
 class TestRaport(unittest.TestCase):

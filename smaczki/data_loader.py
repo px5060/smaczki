@@ -35,7 +35,7 @@ class Mecz:
     liga: str
     home: str                 # nazwa ze źródła (mapowana później przez Nazwy)
     away: str
-    kursy: tuple | None = None  # średnie kursy rynkowe (1, X, 2), jeśli źródło je podaje
+    kursy: dict | None = None  # średnie kursy rynkowe {"1", "X", "2", "O2.5", "U2.5"}, jeśli źródło je podaje
 
 
 @dataclass
@@ -144,19 +144,24 @@ def _int(s):
         return None
 
 
-KOLUMNY_KURSOW = [("AvgH", "AvgD", "AvgA"), ("BbAvH", "BbAvD", "BbAvA")]  # średnie rynkowe (od 2019 / 2005–2019)
+# średnie kursy rynkowe: od 2019/20 "Avg…", w latach 2005/06–2018/19 "BbAv…"
+KOLUMNY_KURSOW = {("1", "X", "2"): [("AvgH", "AvgD", "AvgA"), ("BbAvH", "BbAvD", "BbAvA")],
+                  ("O2.5", "U2.5"): [("Avg>2.5", "Avg<2.5"), ("BbAv>2.5", "BbAv<2.5")]}
 
 
 def kursy_z_wiersza(w):
-    """Średnie kursy 1X2 z wiersza football-data.co.uk albo None."""
-    for kol in KOLUMNY_KURSOW:
-        try:
-            k = tuple(float(w.get(c, "")) for c in kol)
-        except ValueError:
-            continue
-        if all(x > 1.0 for x in k):
-            return k
-    return None
+    """Średnie kursy {"1", "X", "2", "O2.5", "U2.5"} z wiersza football-data.co.uk albo None."""
+    out = {}
+    for typy, warianty in KOLUMNY_KURSOW.items():
+        for kol in warianty:
+            try:
+                k = [float(w.get(c, "")) for c in kol]
+            except ValueError:
+                continue
+            if all(x > 1.0 for x in k):
+                out.update(zip(typy, k))
+                break
+    return out or None
 
 
 def _fd_get(url):

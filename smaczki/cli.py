@@ -182,10 +182,10 @@ def cmd_mecz(a):
         print("Smaczki:")
         skut = skutecznosc.wczytaj()
         for f in fakty:
-            print(f"  ★ {f.tekst}" if f.waga >= C.PROG_DNIA else f"  • {f.tekst}")
-            t = typ_tekst(f, Pozycja(None, "", h, v, fakty), skut)
-            if t:
-                print(f"      → {t}")
+            print(("  ★ " if f.waga >= C.PROG_DNIA else "  • ") + f.tekst + (f"  [{f.typ}]" if f.typ else ""))
+        poz = Pozycja(None, "", h, v, fakty)
+        for t in poz.wspolne:
+            print(f"  ⇒ Typ meczu – {typ_tekst(t, poz, skut)}")
     print("Karta pary:")
     for linia in karta_meczu(dane.hist, h, v):
         print("  • " + linia)
@@ -233,15 +233,20 @@ def cmd_skutecznosc(a):
     wynik, _ = skutecznosc.policz(a.archiwum or a.dane, os.path.join(a.dane, "cache"), od_sezonu=a.od_sezonu)
     skutecznosc.zapisz(wynik)
     def wiersz(nazwa, st):
-        print(f"  {nazwa:12} {st['typow']:6d} typów  trafione {st['trafione'] * 100:5.1f}%  "
-              f"śr. kurs {st['kurs']:5.2f}  zwrot {st['zwrot'] * 100:+6.1f}%")
+        kurs = f"śr. kurs {st['kurs']:5.2f}  zwrot {st['zwrot'] * 100:+6.1f}%" if st.get("zwrot") is not None \
+            else "brak kursów"
+        print(f"  {nazwa:14} {st['typow']:6d} typów  trafione {st['trafione'] * 100:5.1f}% "
+              f"(przeciętnie {st['przecietnie'] * 100:4.1f}%)  {kurs}")
     print(f"Sezony {wynik['okres']}, {wynik['meczow']} meczów z kursami.\nNa ślepo (każdy mecz):")
     for k, st in wynik["bazowe"].items():
         wiersz(k, st)
     print("Typy zgodne z seriami (u = mecze u gospodarza, h2h = wszystkie mecze pary):")
     for k, st in sorted(wynik["reguly"].items()):
         wiersz(k, st)
-    wiersz("główny typ", wynik["glowny_typ"])
+    print("Typ meczu (część wspólna serii):")
+    for k, st in sorted(wynik["wspolne"].items()):
+        wiersz(k, st)
+    wiersz("1X2 razem", wynik["wspolny_1X2"])
     print(f"Zapisano {skutecznosc.PLIK}")
 
 
