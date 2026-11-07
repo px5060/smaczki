@@ -83,7 +83,7 @@ def _pozycje(dane, terminarz, dzis):
     """Smaczki dla listy meczów; dla każdego meczu tylko historia sprzed jego daty."""
     przed = {}
     out = []
-    zakres = zakres_kraju(dane.kraj, dane.poziomy)
+    zakres = zakres_kraju(dane.kraj, dane.poziomy, dane.hist)
     for m in terminarz:
         h, v = dane.nazwy(m.home), dane.nazwy(m.away)
         dzien = m.data.date() if m.data else None
@@ -267,7 +267,7 @@ def cmd_mecz(a):
                   z_terminarzem=False, kraj=kraj, poziomy=poziomy)
     for o in dane.ostrzezenia:
         print("UWAGA: " + o)
-    zakres = zakres_kraju(kraj, dane.poziomy)
+    zakres = zakres_kraju(kraj, dane.poziomy, dane.hist)
     h, v = _znajdz(dane, a.gospodarz), _znajdz(dane, a.gosc)
     kraj_txt = "" if kraj == C.KRAJ_DOMYSLNY else f"{dane.nazwa_kraju}; "
     print(f"=== {h} – {v} ===  ({kraj_txt}historia ligowa do {dane.hist.Date.max():%d.%m.%Y}; {dane.zrodlo})")
@@ -310,7 +310,7 @@ def cmd_ranking(a):
             continue
         liga = f", {ligi[a.tier]}" if a.tier else ""
         kraj_txt = "" if kraj == C.KRAJ_DOMYSLNY else f"{dane.nazwa_kraju}: "
-        zakres = zakres_kraju(kraj, dane.poziomy)
+        zakres = zakres_kraju(kraj, dane.poziomy, dane.hist)
         print(f"=== {kraj_txt}Najdłuższe passy gości bez wygranej u danego rywala{liga} "
               f"(pary grające ze sobą w ostatnich {C.RANKING_LAT} latach; historia do {dane.hist.Date.max():%d.%m.%Y}"
               + (f"; {zakres.opis}" if zakres.opis else "") + ") ===")
