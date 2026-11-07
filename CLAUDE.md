@@ -17,3 +17,4 @@ strona na GitHub Pages odświeżana przez GitHub Actions (`.github/workflows/sma
   Kraje: Anglia, Hiszpania, Włochy, Niemcy, Francja, Holandia (innych nie dodawać bez prośby). Brakujący sezon
   w archiwum (Francja 1937/38, `Kraj.brak`): seria, która go obejmuje – zastrzeżenie zamiast „nigdy”.
 - Strona: kalendarz dni, w dniu kafelki krajów (★ = liczba meczów ze smaczkami), po kliknięciu ligi kraju.
+  Minione dni (7): smaczki sprzed meczu + wynik, ✔ seria utrzymała się / ✘ padła.

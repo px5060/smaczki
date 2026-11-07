@@ -16,26 +16,12 @@ import pandas as pd
 from . import config as C
 from .data_loader import (_csv_wiersze, _dekoduj, _fd_data, _fd_get, _fd_kod, kursy_z_wiersza, sezon_biezacy,
                           zbierz)
-from .rules import fakty_pary, kurs_typu, stawki_sezonow, typ_ostateczny, typy_wspolne, wyniki_sezonow
+from .rules import (fakty_pary, kurs_typu, stawki_sezonow, trafiony, typ_ostateczny, typy_wspolne,  # noqa: F401
+                    wyniki_sezonow)
 
 PLIK = os.path.join(os.path.dirname(__file__), "skutecznosc.json")
 TYPY_BAZOWE = ["1", "X", "2", "1X", "X2", "12", "O2.5", "U2.5", "BTTS", "noBTTS"]
 KOLUMNY_K = ["1", "X", "2", "O2.5", "U2.5"]
-
-
-def trafiony(hg, vg, typ):
-    if typ == "O2.5":
-        return hg + vg >= 3
-    if typ == "U2.5":
-        return hg + vg <= 2
-    if typ == "BTTS":
-        return hg > 0 and vg > 0
-    if typ == "noBTTS":
-        return not (hg > 0 and vg > 0)
-    if typ.startswith("S"):
-        a, b = typ[1:].split(":")
-        return hg == int(a) and vg == int(b)
-    return ("1" if hg > vg else ("X" if hg == vg else "2")) in typ
 
 
 def przecietnie(st, sezon, typ):

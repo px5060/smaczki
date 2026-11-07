@@ -53,6 +53,8 @@ class Dane:
     kraj: str = C.KRAJ_DOMYSLNY
     poziomy: tuple = (1, 2, 3, 4)
     ligi: list = field(default_factory=list)         # [StanLigi] – raport per liga: koniec historii, dopisane mecze
+    rozegrane: dict = field(default_factory=dict)    # (data, gospodarz, gość) -> (godzina w Polsce, kursy) – mecze
+                                                     # ze źródła bieżącego (do widoku minionych dni)
 
     @property
     def nazwa_kraju(self):
@@ -237,8 +239,9 @@ def fd_wyniki(sezon, cache_dir, biezacy, ligi=None):
             if d is None or hg is None or vg is None:
                 continue
             wiersze.append({"Date": pd.Timestamp(d.date()), "Season": sezon, "home": w["HomeTeam"],
-                            "visitor": w["AwayTeam"], "hgoal": hg, "vgoal": vg, "tier": tier})
-    return pd.DataFrame(wiersze, columns=KOLUMNY)
+                            "visitor": w["AwayTeam"], "hgoal": hg, "vgoal": vg, "tier": tier,
+                            "godz": w.get("Time", ""), "kursy": kursy_z_wiersza(w)})
+    return pd.DataFrame(wiersze, columns=KOLUMNY + ["godz", "kursy"])
 
 
 _TERMINARZ = {}  # fixtures.csv pobrany raz na uruchomienie (wspólny dla wszystkich krajów)
@@ -406,13 +409,15 @@ def zbierz(archiwum, cache_dir, zrodlo, dzis, od, do, z_terminarzem=True, kraj=C
             if s not in uzupelnione:
                 ostrz.append(f"Archiwum nie ma sezonu {opis_sezonu(s)}, a {OPIS_ZRODLA[z]} go nie zwróciło – "
                              "smaczki obejmujące ten sezon mogą być nieścisłe.")
+        rozegrane = {}
         if len(wyniki):
             wyniki = wyniki.assign(home=wyniki.home.map(nazwy), visitor=wyniki.visitor.map(nazwy),
                                    zrodlo=OPIS_ZRODLA[z])
+            rozegrane = _rozegrane(wyniki)
             hist = dolacz(hist, wyniki, luki_poz)
         opis = f"archiwum engsoccerdata + {OPIS_ZRODLA[z]} (od sezonu {opis_sezonu(C.PIERWSZY_SEZON_PO_ARCHIWUM)})"
         d = Dane(hist, term, nazwy, opis, ostrz, uzupelnione=uzupelnione, pobrano=dt.datetime.now(),
-                 biezace=OPIS_ZRODLA[z], kraj=kraj, poziomy=poziomy)
+                 biezace=OPIS_ZRODLA[z], kraj=kraj, poziomy=poziomy, rozegrane=rozegrane)
         d.ligi = stan_lig(d, ligi, s_biez)
         return d
     if luki:
@@ -421,6 +426,25 @@ def zbierz(archiwum, cache_dir, zrodlo, dzis, od, do, z_terminarzem=True, kraj=C
     d = Dane(hist, [], nazwy, "samo archiwum engsoccerdata", ostrz, tylko_archiwum=True, kraj=kraj, poziomy=poziomy)
     d.ligi = stan_lig(d, ligi, s_biez)
     return d
+
+
+def _rozegrane(wyniki):
+    """Godzina (polska) i kursy rozegranych meczów ze źródła bieżącego: {(data, gospodarz, gość): (godzina, kursy)}."""
+    out = {}
+    if "godz" not in wyniki and "kursy" not in wyniki:
+        return out
+    for r in wyniki.itertuples():
+        g = str(getattr(r, "godz", "") or "")
+        godz = None
+        if ":" in g:
+            hh, mm = g.split(":")[:2]
+            try:
+                godz = (dt.datetime(2000, 1, 1, int(hh), int(mm)) + dt.timedelta(hours=C.FD_PRZESUNIECIE_GODZIN)).time()
+            except ValueError:
+                godz = None
+        k = getattr(r, "kursy", None)
+        out[(pd.Timestamp(r.Date), r.home, r.visitor)] = (godz, k if isinstance(k, dict) else None)
+    return out
 
 
 def dolacz(hist, wyniki, luki_poz=()):

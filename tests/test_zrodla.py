@@ -245,6 +245,33 @@ class TestCLI(Tmp):
         self.assertIn("ntfy.sh/test-temat?title=Smaczki", req.full_url)
         self.assertIn("Luton Town – Sheffield United", req.data.decode("utf-8"))
 
+    def test_minione_dni_ktora_seria_sie_utrzymala(self):
+        """Miniony dzień na stronie: smaczki sprzed meczu, wynik i ✔/✘ przy każdej serii."""
+        wyniki = pd.DataFrame(
+            [{"Date": pd.Timestamp(f"{r}-10-01"), "Season": r, "home": "Luton", "visitor": "Sheffield Utd",
+              "hgoal": 3, "vgoal": 0, "tier": 2} for r in range(2015, 2023)]
+            + [{"Date": pd.Timestamp("2026-11-04"), "Season": 2026, "home": "Luton", "visitor": "Sheffield Utd",
+                "hgoal": 0, "vgoal": 1, "tier": 2, "godz": "19:45", "kursy": {"1": 1.8, "X": 3.6, "2": 4.5}}])
+        term = [dl.Mecz(dt.datetime(2026, 11, 7, 16, 0), "Championship", "Wolves", "Sheffield Utd")]
+        html = os.path.join(self.tmp, "site", "index.html")
+        typowe = pd.DataFrame(columns=["1", "X", "2", "O", "B"], dtype=float)
+        with mock.patch.object(dl, "fd_dane", return_value=(wyniki, term)), \
+                mock.patch("smaczki.rules.stawki_sezonow", return_value=typowe):
+            self.uruchom("dzis", "--dzis", "2026-11-06", "--zrodlo", "fd", "--dane", self.tmp, "--html", html,
+                         "--raport", os.path.join(self.tmp, "r.txt"))
+        with open(html, encoding="utf-8") as f:
+            strona = f.read()
+        self.assertIn('<button type="button" data-d="2026-11-04" class="minal">', strona)
+        self.assertIn('<section class="dzien" data-d="2026-11-04">', strona)
+        self.assertIn('Luton Town – Sheffield United <span class="rez">0:1</span>', strona)
+        self.assertIn("Luton Town wygrał u siebie z Sheffield United 8 razy z rzędu", strona)  # smaczek sprzed meczu
+        self.assertIn('<span class="wyn zle">✘ padła</span>', strona)
+        self.assertIn('<span class="wyn zle">✘ nietrafiony</span>', strona)
+        self.assertIn("Rozegrane – serie:", strona)
+        self.assertIn("20:45", strona)  # godzina z football-data.co.uk w czasie polskim
+        with open(os.path.join(self.tmp, "r.txt"), encoding="utf-8") as f:
+            self.assertNotIn("Luton Town – Sheffield United", f.read())  # raport tekstowy: tylko nadchodzące mecze
+
 
 def para(wyniki):
     """Historia pary A–B: lista (rok, gospodarz, gole gosp., gole gościa)."""
@@ -354,6 +381,19 @@ class TestSeriePary(unittest.TestCase):
         self.assertEqual(html.count('class="teraz"') + html.count('class="x teraz"'), 18)
         self.assertIn("jest zaznaczona w tabeli „Wszystkie mecze pary” niżej", html)
         self.assertIn("<details open><summary>Wszystkie mecze pary: 7 meczów", html)
+
+    def test_wynik_rozegranego_meczu_przy_smaczkach(self):
+        from smaczki.report import _karta, bilans_serii
+        f1 = Fakt(30, "A wygrał u siebie z B 5 razy z rzędu", typ="1", regula="u:W", n=5)
+        f2 = Fakt(20, "Poniżej 2.5 bramki w 8 meczach z rzędu u A z B", typ="U2.5", regula="u:U", n=8)
+        p = Pozycja(dt.datetime(2026, 11, 1, 16), "PL", "A", "B", [f1, f2], rezultat=(1, 0))
+        html = _karta(p)
+        self.assertIn('<span class="rez">1:0</span>', html)
+        self.assertEqual(html.count('<span class="wyn ok">✔ utrzymała się</span>'), 2)
+        self.assertEqual(bilans_serii([p]), (2, 0))
+        p.rezultat = (2, 2)
+        self.assertEqual(bilans_serii([p]), (0, 2))  # remis przerywa serię wygranych, 4 gole – serię under
+        self.assertEqual(bilans_serii([Pozycja(None, "", "A", "B", [f1])]), (0, 0))  # mecz nierozegrany
 
     def test_gosc_wygrywa_seria_2(self):
         from smaczki.rules import smaczki

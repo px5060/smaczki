@@ -7,7 +7,7 @@ import pandas as pd
 
 from . import config as C
 from .rules import (TypWspolny, fmt, klucz_wyboru, kurs_typu, mecze, odmiana, przebieg_serii, rynek_typu,
-                    serie_wczesniejsze, typ_ostateczny, typy_wspolne)
+                    serie_wczesniejsze, trafiony, typ_ostateczny, typy_wspolne)
 
 DNI = ["poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota", "niedziela"]
 DNI_KROTKO = ["pn", "wt", "śr", "czw", "pt", "sob", "nd"]
@@ -28,6 +28,7 @@ class Pozycja:
     kraj: str = C.KRAJ_DOMYSLNY
     zakres: object = None   # rules.Zakres – zakres danych kraju (None = Anglia: pełna historia 4 poziomów)
     stawki: object = None   # odsetki wyników sezonów (rules.stawki_sezonow) – do wcześniejszych serii pary
+    rezultat: tuple = None  # wynik rozegranego meczu (gole gospodarza, gole gościa) – widok minionych dni
     _wcz: dict = field(default_factory=dict, repr=False, compare=False)
 
     def mecze_ukladu(self, uklad):
@@ -82,6 +83,8 @@ def naglowek_dnia(dzien, dzis):
     nazwa = f"{DNI[dzien.weekday()]} {dzien.day} {MIESIACE[dzien.month - 1]}"
     if dzien == dzis:
         return f"Dziś · {nazwa}"
+    if dzien == dzis - dt.timedelta(days=1):
+        return f"Wczoraj · {nazwa}"
     if dzien == dzis + dt.timedelta(days=1):
         return f"Jutro · {nazwa}"
     return nazwa[0].upper() + nazwa[1:]
@@ -416,6 +419,17 @@ background:var(--card);border:1px solid var(--line);border-radius:14px;padding:.
 .kafel.akt{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
 .kafel.pusty{cursor:default;opacity:.55}
 div.kraj[hidden]{display:none}
+.kal button.minal{background:var(--chip)}
+.kal button.minal .ile{color:var(--muted)}
+.wyn{font-size:.72rem;font-weight:700;white-space:nowrap;border-radius:6px;padding:0 .35rem}
+.wyn.ok,.ok{color:#1d7a35}
+.wyn.zle,.zle{color:var(--accent)}
+.wyn.ok{background:var(--ziel)}
+.wyn.zle{background:#fbe1e1}
+@media (prefers-color-scheme:dark){.wyn.ok,.ok{color:#7bd88f}.wyn.zle{background:#4a1f22}}
+.rez{display:inline-block;margin-left:.3rem;padding:0 .45rem;border-radius:8px;background:var(--chip);font-weight:700}
+.kafel .kw{font-size:.72rem;color:var(--muted)}
+.podsum.minal{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.5rem .7rem}
 .uw{color:var(--accent)}
 section.dzien[hidden]{display:none}
 .predykcja{border:2px solid var(--accent);border-radius:14px;padding:.8rem .9rem;margin:1.6rem 0 .6rem;
@@ -629,6 +643,38 @@ def seria_html(p, t, z_opisem=True):
     return opis + legenda + tabela
 
 
+def wszedl(p, typ):
+    """Rozegrany mecz: czy typ wszedł (seria utrzymała się); None – mecz jeszcze nie rozegrany albo brak typu."""
+    if p.rezultat is None or not typ:
+        return None
+    return trafiony(p.rezultat[0], p.rezultat[1], typ)
+
+
+def _znak_serii(p, typ):
+    w = wszedl(p, typ)
+    if w is None:
+        return ""
+    return ' <span class="wyn ok">✔ utrzymała się</span>' if w else ' <span class="wyn zle">✘ padła</span>'
+
+
+def _znak_typu(p, typ):
+    w = wszedl(p, typ)
+    if w is None:
+        return ""
+    return ' <span class="wyn ok">✔ trafiony</span>' if w else ' <span class="wyn zle">✘ nietrafiony</span>'
+
+
+def bilans_serii(pozycje):
+    """(serie, które się utrzymały, serie, które padły) w rozegranych meczach."""
+    ok = zle = 0
+    for p in pozycje:
+        for f in p.fakty:
+            w = wszedl(p, f.typ)
+            if w is not None:
+                ok, zle = ok + w, zle + (not w)
+    return ok, zle
+
+
 def _typ_faktu(f):
     """Seria jednego smaczka jako TypWspolny (do tabeli serii)."""
     return TypWspolny(rynek_typu(f.typ), f.typ, [f.typ], f.waga, f.n, regula=f.regula, fakt=f)
@@ -639,9 +685,10 @@ def _fakt_html(p, f):
     klasa = "mocny" if f.waga >= C.PROG_DNIA else ""
     tag = f' <span class="tag">{e(_krotko(f.typ))}</span>' if f.typ else ""
     tabela = seria_html(p, _typ_faktu(f), z_opisem=False) if f.typ and f.regula else ""
+    znak = _znak_serii(p, f.typ)
     if not tabela:
-        return f'<li class="{klasa}">{e(f.tekst)}{tag}</li>'
-    return (f'<li class="{klasa}"><details class="seria fakt"><summary>{e(f.tekst)}{tag} '
+        return f'<li class="{klasa}">{e(f.tekst)}{tag}{znak}</li>'
+    return (f'<li class="{klasa}"><details class="seria fakt"><summary>{e(f.tekst)}{tag}{znak} '
             f'<span class="pokaz">mecze serii</span></summary><div class="wfakt">{tabela}</div></details></li>')
 
 
@@ -649,10 +696,10 @@ def _karta(p, skut=None):
     gw = '<span class="badge">★ długa historia</span>' if p.dluga_historia else ""
     godz = f"{p.data:%H:%M}" if p.data and (p.data.hour, p.data.minute) != (0, 0) else ""
     fakty = "".join(_fakt_html(p, f) for f in p.fakty[:C.MAKS_FAKTOW])
-    typy = "".join(f"<div>{e(typ_tekst(t, p, skut))}</div>" for t in p.wspolne)
+    typy = "".join(f"<div>{e(typ_tekst(t, p, skut))}{_znak_typu(p, t.typ)}</div>" for t in p.wspolne)
     ost = ostateczny_tekst(p, skut)
     if ost:
-        typy += (f'<details class="seria ost"><summary>{e(ost)}</summary>'
+        typy += (f'<details class="seria ost"><summary>{e(ost)}{_znak_typu(p, p.ostateczny.typ)}</summary>'
                  f'{seria_html(p, p.ostateczny)}</details>')
     if typy:
         fakty_html_typy = f'<div class="typy"><b>Typ meczu</b>{typy}</div>'
@@ -661,7 +708,8 @@ def _karta(p, skut=None):
     klasa = "card star" if p.dluga_historia else ("card" if p.fakty else "card plain")
     return (f'<div class="{klasa}">'
             f'<div class="top"><span class="chip">{e(p.liga)}</span><span>{godz}</span>{gw}</div>'
-            f'<div class="teams">{e(p.h)} – {e(p.v)}</div>'
+            f'<div class="teams">{e(p.h)} – {e(p.v)}'
+            + (f' <span class="rez">{p.rezultat[0]}:{p.rezultat[1]}</span>' if p.rezultat else "") + '</div>'
             f'<div class="last">{e(_ostatni_txt(p))}</div>'
             + (f"<ul>{fakty}</ul>" if fakty else "") + fakty_html_typy + _wyniki_html(p) + "</div>")
 
@@ -767,10 +815,15 @@ def _predykcja_html(pr, skut, tytul="Ostateczna predykcja dnia", typy=None):
         lista = ('<div class="lista"><b>Wszystkie typy dnia</b><span class="pw">od najdłuższej serii</span><ol>'
                  + "".join(f'<li class="{"pierwszy" if i == 0 else ""}"><details class="seria"><summary>'
                            + (f'<span class="tag">{e(p.liga)}</span> ' if p.liga else "")
-                           + f'{e(typ_linia(p, t))}</summary>{seria_html(p, t)}</details></li>'
+                           + f'{e(typ_linia(p, t))}'
+                           + (f' · {p.rezultat[0]}:{p.rezultat[1]}{_znak_typu(p, t.typ)}' if p.rezultat else "")
+                           + f'</summary>{seria_html(p, t)}</details></li>'
                            for i, (p, t) in enumerate(typy)) + "</ol></div>")
+    p, t, _ = pr
+    wynik = (f'<div class="pt">Wynik: {p.rezultat[0]}:{p.rezultat[1]}{_znak_typu(p, t.typ)}</div>'
+             if p.rezultat else "")
     return (f'<div class="predykcja"><b>{e(tytul)}</b><div class="pm">{e(nag)}</div>'
-            f'<div class="pt">{e(typ)}</div><div class="pw">{e(why)}</div>'
+            f'<div class="pt">{e(typ)}</div>{wynik}<div class="pw">{e(why)}</div>'
             + (f'<div class="pw">{e(hist)}</div>' if hist else "") + lista + "</div>")
 
 
@@ -784,9 +837,20 @@ def _liga_html(nazwa, mecze_ligi, skut, otwarta=False):
     gw = sum(1 for p in ze if p.dluga_historia)
     licznik = odmiana(len(ze), "mecz ze smaczkiem", "mecze ze smaczkami", "meczów ze smaczkami") \
         + (f" · ★{gw}" if gw else "")
+    if any(p.rezultat for p in ze):
+        ok, zle = bilans_serii(ze)
+        licznik += f" · ✔{ok} ✘{zle}"
     return (f'<details class="liga"{" open" if otwarta else ""}><summary><span>{e(nazwa)}</span>'
             f'<span class="lic">{e(licznik)}</span>'
             f'</summary>{"".join(_karta(p, skut) for p in ze)}</details>')
+
+
+def _kafel_wyniki(mecze_kraju):
+    """Na kafelku minionego dnia: ile serii się utrzymało, a ile padło."""
+    if not any(p.rezultat for p in mecze_kraju):
+        return ""
+    ok, zle = bilans_serii([p for p in mecze_kraju if p.ma_serie])
+    return f'<span class="kw"><span class="ok">✔ {ok}</span> <span class="zle">✘ {zle}</span> serii</span>'
 
 
 def _kafle_html(dnia, info, skut):
@@ -805,11 +869,29 @@ def _kafle_html(dnia, info, skut):
                      f'<span class="kn">{e(k["nazwa"])}</span><span class="ile">★ {ze}</span>'
                      f'<span class="km">{odmiana(ze, "smaczek", "smaczki", "smaczków").split(" ", 1)[1]} · '
                      f'{mecze(len(mecze_kraju))}</span>'
-                     + (f'<span class="kd">{dlugie} z długą historią</span>' if dlugie else "") + "</button>")
+                     + (f'<span class="kd">{dlugie} z długą historią</span>' if dlugie else "")
+                     + _kafel_wyniki(mecze_kraju) + "</button>")
         jedna = len(ligi) == 1
         kraje.append(f'<div class="kraj" data-k="{kod}" hidden>'
                      + "".join(_liga_html(n, m, skut, otwarta=jedna) for n, m in ligi) + "</div>")
     return f'<div class="kafle">{"".join(kafle)}</div>' + "".join(kraje)
+
+
+def _podsumowanie_dnia(dnia, pr):
+    """Miniony dzień: ile serii się utrzymało / padło, ile ostatecznych typów weszło, czy weszła predykcja dnia."""
+    ok, zle = bilans_serii(dnia)
+    ost = [wszedl(p, p.ostateczny.typ) for p in dnia if p.ostateczny is not None]
+    ost = [w for w in ost if w is not None]
+    czesci = [f'serie: <span class="ok">✔ utrzymało się {ok}</span> · <span class="zle">✘ padło {zle}</span>']
+    if ost:
+        czesci.append(f"ostateczne typy: trafione {sum(ost)} z {len(ost)}")
+    if pr:
+        w = wszedl(pr[0], pr[1].typ)
+        if w is not None:
+            czesci.append("predykcja dnia: " + ('<span class="ok">✔ trafiona</span>' if w
+                                                 else '<span class="zle">✘ nietrafiona</span>'))
+    return ('<p class="podsum minal">Rozegrane – ' + " · ".join(czesci) +
+            '. Smaczki i typy tak, jak wyglądały rano w dniu meczu.</p>')
 
 
 def raport_html(pozycje, info, dzis, od, do):
@@ -823,16 +905,23 @@ def raport_html(pozycje, info, dzis, od, do):
         dnia = [p for p in pozycje if p.dzien == dzien]
         gw = sum(1 for p in dnia if p.dluga_historia)
         iso = dzien.isoformat()
+        minal = dzien < dzis
+        if minal:  # miniony dzień: ile serii się utrzymało, a ile padło
+            ok, zle = bilans_serii(dnia)
+            ile = f"✔{ok} ✘{zle}"
+        else:
+            ile = "★ " + str(gw) if gw else str(sum(1 for p in dnia if p.ma_serie)) + " sm."
+        klasa_dnia = ' class="minal"' if minal else ""
         przyciski.append(
-            f'<button type="button" data-d="{iso}"><span class="dn">'
+            f'<button type="button" data-d="{iso}"{klasa_dnia}><span class="dn">'
             f'{"dziś" if dzien == dzis else DNI_KROTKO[dzien.weekday()]}</span>'
             f'<span class="dd">{dzien.day}.{dzien.month:02d}</span>'
-            f'<span class="ile">{"★ " + str(gw) if gw else str(sum(1 for p in dnia if p.ma_serie)) + " sm."}'
-            f'</span></button>')
+            f'<span class="ile">{ile}</span></button>')
         tresc = _kafle_html(dnia, info, skut)
         pr = predykcja(dnia)
+        podsum = _podsumowanie_dnia(dnia, pr) if minal else ""
         panele.append(f'<section class="dzien" data-d="{iso}"><h2>{e(naglowek_dnia(dzien, dzis))}</h2>'
-                      + tresc
+                      + podsum + tresc
                       + (_predykcja_html(pr, skut, typy=typy_dnia(dnia)) if pr else
                          '<p class="empty">Brak serii – brak ostatecznej predykcji tego dnia.</p>')
                       + "</section>")
@@ -858,7 +947,9 @@ def raport_html(pozycje, info, dzis, od, do):
 {ostrz}
 {kalendarz}
 {"".join(panele)}
-<footer>{e(_podsumowanie(pozycje))}<br>★ = smaczek z długą historią (waga ≥ {C.PROG_DNIA}).
+<footer>{e(_podsumowanie([p for p in pozycje if p.rezultat is None]))}<br>
+Minione dni: mecze, których wyniki są już w football-data.co.uk (dopisuje je z opóźnieniem kilku dni) –
+przy smaczkach ✔ seria utrzymała się, ✘ seria padła.<br>★ = smaczek z długą historią (waga ≥ {C.PROG_DNIA}).
 Tylko mecze ligowe; „u drużyny X” = mecze, w których X był gospodarzem.
 W tabelach 1X2: 1 = wygrana gospodarza, X = remis, 2 = wygrana gości (wyróżniona).
 {_dane_html(info)}
@@ -904,7 +995,9 @@ Wygenerowano {teraz}.</footer>
   if (!przyciski.length) return;
   przyciski.forEach(function (b) {{ b.addEventListener("click", function () {{ pokaz(b.getAttribute("data-d"), kraj); }}); }});
   var h = location.hash.slice(1).split("/"), dni = Array.prototype.map.call(przyciski, function (b) {{ return b.getAttribute("data-d"); }});
-  pokaz(dni.indexOf(h[0]) >= 0 ? h[0] : dni[0], h[1] || "");
+  var dzisiejsze = Array.prototype.filter.call(przyciski, function (b) {{ return !b.classList.contains("minal"); }});
+  var start = dzisiejsze.length ? dzisiejsze[0].getAttribute("data-d") : dni[dni.length - 1];
+  pokaz(dni.indexOf(h[0]) >= 0 ? h[0] : start, h[1] || "");
 }})();
 </script>
 </body></html>

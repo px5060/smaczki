@@ -79,13 +79,14 @@ def _info(dane, wlasny_plik=None):
             "zrodlo_terminarza": f"własny plik {wlasny_plik}" if wlasny_plik else TERMINARZ.get(biezace, "")}
 
 
-def _pozycje(dane, terminarz, dzis):
-    """Smaczki dla listy meczów; dla każdego meczu tylko historia sprzed jego daty."""
+def _pozycje(dane, terminarz, dzis, mapuj=True):
+    """Smaczki dla listy meczów; dla każdego meczu tylko historia sprzed jego daty.
+    mapuj=False – nazwy drużyn są już nazwami z archiwum (mecze rozegrane)."""
     przed = {}
     out = []
     zakres = zakres_kraju(dane.kraj, dane.poziomy, dane.hist)
     for m in terminarz:
-        h, v = dane.nazwy(m.home), dane.nazwy(m.away)
+        h, v = (dane.nazwy(m.home), dane.nazwy(m.away)) if mapuj else (m.home, m.away)
         dzien = m.data.date() if m.data else None
         if dzien not in przed:
             przed[dzien] = dane.hist if dzien is None else dane.hist[dane.hist.Date < pd.Timestamp(dzien)]
@@ -95,6 +96,27 @@ def _pozycje(dane, terminarz, dzis):
         out.append(Pozycja(m.data, m.liga, h, v, smaczki(hist, h, v, ref, zakres),
                            ostatni=ostatni_u_gospodarza(hist, h, v), wyniki=wyn, kursy=m.kursy,
                            kraj=dane.kraj, zakres=zakres, stawki=stawki_sezonow(hist)))
+    return out
+
+
+def _pozycje_minione(dane, od, do, nazwy_lig=None):
+    """Mecze rozegrane od..do (już z wynikiem w danych): smaczki i typy tak, jak wyglądały rano w dniu meczu
+    (historia sprzed tego dnia), plus wynik meczu – do sprawdzenia, które serie się utrzymały, a które padły."""
+    h = dane.hist
+    rozegrane = h[(h.Date >= pd.Timestamp(od)) & (h.Date <= pd.Timestamp(do))]
+    ligi = {t: n for n, t, _ in C.KRAJE[dane.kraj].ligi.values()}
+    terminarz, wyniki = [], []
+    for r in rozegrane.itertuples():
+        liga = ligi.get(int(r.tier), "")
+        if nazwy_lig is not None and liga not in nazwy_lig:
+            continue
+        godz, kursy = dane.rozegrane.get((pd.Timestamp(r.Date), r.home, r.visitor), (None, None))
+        data = dt.datetime.combine(pd.Timestamp(r.Date).date(), godz or dt.time(0, 0))
+        terminarz.append(Mecz(data, liga, r.home, r.visitor, kursy))
+        wyniki.append((int(r.hgoal), int(r.vgoal)))
+    out = _pozycje(dane, terminarz, od, mapuj=False)
+    for p, w in zip(out, wyniki):
+        p.rezultat = w
     return out
 
 
@@ -195,13 +217,16 @@ def cmd_terminarz(a, dzienny):
     lista = zbierz_kraje(a.archiwum or a.dane, os.path.join(a.dane, "cache"), a.zrodlo, dzis, od, do, kraje,
                          z_terminarzem=not wlasne)
     nazwy_lig = None if kody is None else {C.KRAJE[C.LIGA_KRAJ[k]].ligi[k][0] for k in kody}
-    pozycje, terminarz_razem = [], 0
+    wstecz = getattr(a, "wstecz", 0) if not wlasne else 0
+    pozycje, minione, terminarz_razem = [], [], 0
     for dane in lista:
         terminarz = z_pliku[dane.kraj] if wlasne else dane.terminarz
         if nazwy_lig is not None:
             terminarz = [m for m in terminarz if m.liga in nazwy_lig]
         terminarz_razem += len(terminarz)
         pozycje += _pozycje(dane, terminarz, dzis)
+        if wstecz and not dane.tylko_archiwum:  # minione dni z wynikami (do „cofnięcia się” na stronie)
+            minione += _pozycje_minione(dane, od - dt.timedelta(days=wstecz), od - dt.timedelta(days=1), nazwy_lig)
     if not terminarz_razem and not dzienny:
         print("\n".join(o for d in lista for o in d.ostrzezenia), file=sys.stderr)
         sys.exit(f"Brak meczów do rozegrania w okresie {od} – {do}.")
@@ -212,7 +237,7 @@ def cmd_terminarz(a, dzienny):
     print(tekst)
     _zapisz(a.raport, tekst)
     if a.html:
-        _zapisz(a.html, raport_html(pozycje, info, dzis, od, do))
+        _zapisz(a.html, raport_html(minione + pozycje, info, dzis, od, do))
         print(f"\nStrona: {a.html}")
     temat = getattr(a, "ntfy", None) or os.environ.get("NTFY_TOPIC", "").strip()
     if dzienny and temat:
@@ -402,6 +427,8 @@ def main(argv=None):
                        help="mecze od dziś na tydzień (kalendarz na stronie HTML) + powiadomienie o dzisiejszych")
     terminarzowe(p, 6, "raport_dzis.txt")
     p.add_argument("--html", default="site/index.html", help="strona HTML (domyślnie site/index.html)")
+    p.add_argument("--wstecz", type=int, default=C.DNI_WSTECZ,
+                   help=f"ile minionych dni pokazać na stronie z wynikami i oceną serii (domyślnie {C.DNI_WSTECZ})")
     p.add_argument("--ntfy", help="temat ntfy.sh do powiadomień (albo zmienna NTFY_TOPIC)")
 
     p = sub.add_parser("kolejka", parents=[wspolne], help="terminarz na N dni albo z pliku CSV")

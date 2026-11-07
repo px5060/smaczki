@@ -135,6 +135,22 @@ def typy_wspolne(fakty):
     return out
 
 
+def trafiony(hg, vg, typ):
+    """Czy typ wszedł przy wyniku hg:vg (gospodarz:gość). Typ zgodny z serią = seria trwa dalej."""
+    if typ == "O2.5":
+        return hg + vg >= 3
+    if typ == "U2.5":
+        return hg + vg <= 2
+    if typ == "BTTS":
+        return hg > 0 and vg > 0
+    if typ == "noBTTS":
+        return not (hg > 0 and vg > 0)
+    if typ.startswith("S"):
+        a, b = typ[1:].split(":")
+        return hg == int(a) and vg == int(b)
+    return ("1" if hg > vg else ("X" if hg == vg else "2")) in typ
+
+
 def kurs_typu(kursy, typ):
     """Kurs typu albo None (podwójna szansa wyliczana z kursów 1X2)."""
     if not kursy:
