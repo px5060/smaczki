@@ -18,3 +18,5 @@ strona na GitHub Pages odświeżana przez GitHub Actions (`.github/workflows/sma
   w archiwum (Francja 1937/38, `Kraj.brak`): seria, która go obejmuje – zastrzeżenie zamiast „nigdy”.
 - Strona: kalendarz dni, w dniu kafelki krajów (★ = liczba meczów ze smaczkami), po kliknięciu ligi kraju.
   Minione dni (7): smaczki sprzed meczu + wynik, ✔ seria utrzymała się / ✘ padła.
+- Tylko mecze ligowe. Puchary/baraże/Tarcza Wspólnoty – na razie nie (archiwum tylko do 2019, brak darmowego
+  bieżącego źródła; wróć do tematu tylko na prośbę użytkownika, np. z płatnym kluczem API-Football).
