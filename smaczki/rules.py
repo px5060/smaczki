@@ -1,5 +1,5 @@
 """Smaczki: serie 1X2 w pojedynkach pary (u gospodarza i wszystkie mecze), karta pary i ranking."""
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 import pandas as pd
@@ -25,11 +25,17 @@ class Zakres:
             "" = wszystkie poziomy ligowe kraju (Anglia: 4 poziomy),
     pelna – archiwum ma całą historię tych rozgrywek: wolno pisać „nigdy”; inaczej (wycinek historii) seria od
             pierwszego meczu w danych to „w żadnym z N meczów od X r. (dane od X)”, a jej waga jest obniżona,
-    od    – {poziom: pierwszy sezon w danych}.
+    od    – {poziom: pierwszy sezon w danych},
+    brak  – sezony rozegrane, ale brakujące w archiwum (np. Francja 1937); przy_luce – drużyny, które grały
+            w sezonie przed albo po takim sezonie (mogły grać ze sobą w brakującym sezonie).
+    zastrzezenie – tekst w nawiasie zamiast „dane od X” (ustawiany dla serii obejmującej brakujący sezon).
     """
     w: str = ""
     pelna: bool = True
     od: tuple = ()  # ((poziom, sezon), …)
+    brak: tuple = ()
+    przy_luce: frozenset = frozenset()
+    zastrzezenie: str = ""
 
     def dane_od(self, poziom=None):
         od = dict(self.od)
@@ -47,8 +53,9 @@ class Zakres:
 ANGLIA = Zakres()
 
 
-def zakres_kraju(kraj, poziomy=None):
-    """Zakres dla kraju z config.KRAJE i włączonych poziomów."""
+def zakres_kraju(kraj, poziomy=None, hist=None):
+    """Zakres dla kraju z config.KRAJE i włączonych poziomów (hist – do sprawdzenia, kto grał przy brakującym
+    sezonie; bez hist każda para jest traktowana jak mogąca grać w brakującym sezonie)."""
     k = C.KRAJE[kraj]
     wszystkie = tuple(sorted({t for _, t, _ in k.ligi.values()}))
     poziomy = tuple(sorted(poziomy)) if poziomy else wszystkie
@@ -58,7 +65,29 @@ def zakres_kraju(kraj, poziomy=None):
         w = f"na {poziomy[0]}. poziomie ligowym"
     else:
         w = "na poziomach " + ", ".join(map(str, poziomy))
-    return Zakres(w, k.pelna, tuple((t, k.od_poziomu.get(t, k.od)) for t in poziomy))
+    przy_luce = frozenset()
+    if k.brak and hist is not None:
+        sezony = {x for b in k.brak for x in (b - 1, b + 1)}
+        obok = hist[hist.Season.isin(list(sezony))]
+        przy_luce = frozenset(obok.home) | frozenset(obok.visitor)
+    return Zakres(w, k.pelna, tuple((t, k.od_poziomu.get(t, k.od)) for t in poziomy), tuple(k.brak), przy_luce)
+
+
+def luka_serii(s, z, h, v):
+    """Sezon brakujący w archiwum, w którym para mogła zagrać w czasie serii (od ostatniego meczu przed serią,
+    przy serii „od początku” – w ogóle) albo None. Para „mogła zagrać”, gdy obie drużyny grały w lidze w sezonie
+    przed albo po brakującym (z.przy_luce; pusty zbiór = nie wiadomo, więc tak)."""
+    for b in z.brak:
+        if z.przy_luce and not (h in z.przy_luce and v in z.przy_luce):
+            continue
+        if s.nigdy or int(s.przerwal.Season) < b:
+            return b
+    return None
+
+
+def z_luka(z, b):
+    """Zakres dla serii obejmującej brakujący sezon b: bez „nigdy”, z zastrzeżeniem w nawiasie."""
+    return replace(z, pelna=False, zastrzezenie=f"w danych brak sezonu {b}/{(b + 1) % 100:02d}")
 
 
 # Zakład zgodny z serią (perspektywa gospodarza nadchodzącego meczu): seria trwa dalej.
@@ -387,6 +416,95 @@ def przebieg_serii(df, druzyna, typ, wynik=None):
     return etykiety, wczesniejsze[::-1]
 
 
+# ---------- wcześniejsze (przerwane) serie pary – każdego rodzaju ----------
+
+RODZAJE_WCZESNIEJSZYCH = ("W", "R", "P", "nieP", "nieW", "nieR", "O", "U", "B", "nB", "S")
+
+
+def _szanse_meczow(df, druzyna, stawki):
+    """Szansa każdego meczu df na wynik danego rodzaju (z perspektywy drużyny) przy typowych wynikach sezonu."""
+    dom = df.home.to_numpy() == druzyna
+    sez = stawki.reindex(df.Season.to_numpy())
+    p1, px, p2, p_o, p_b = (pd.to_numeric(sez[k], errors="coerce").fillna(C.STAWKI_DOMYSLNE[k]).to_numpy(dtype=float)
+                            for k in ("1", "X", "2", "O", "B"))
+    w, p = np.where(dom, p1, p2), np.where(dom, p2, p1)
+    wyn = wyniki_sezonow(stawki)
+    p_s = np.array([wyn.get((se, a, b), C.WYNIK_DOMYSLNY)
+                    for se, a, b in zip(df.Season.to_numpy(), df.hgoal.to_numpy(), df.vgoal.to_numpy())], dtype=float)
+    return {"W": w, "R": px, "P": p, "nieP": w + px, "nieW": px + p, "nieR": w + p,
+            "O": p_o, "U": 1 - p_o, "B": p_b, "nB": 1 - p_b, "S": p_s}
+
+
+def _opis_wczesniejszej(typ, n, h, v, uklad, wynik=None):
+    u = uklad == "u"
+    if typ == "S":
+        a, b = wynik
+        sc = f"{a}:{b}" if a == b or u else (f"{a}:{b} dla {h}" if a > b else f"{b}:{a} dla {v}")
+        return f"ten sam wynik {sc} {n} razy z rzędu"
+    return {
+        "W": f"{h} wygrał u siebie {n} razy z rzędu" if u else f"{h} wygrał {n} razy z rzędu",
+        "P": f"{v} wygrał u {h} {n} razy z rzędu" if u else f"{v} wygrał {n} razy z rzędu",
+        "R": f"{remisy(n)} z rzędu",
+        "nieP": f"{v} bez wygranej u {h} – {mecze(n)}" if u else f"{v} bez wygranej z {h} – {mecze(n)}",
+        "nieW": f"{h} bez wygranej u siebie – {mecze(n)}" if u else f"{h} bez wygranej z {v} – {mecze(n)}",
+        "nieR": f"bez remisu – {mecze(n)}",
+        "O": f"powyżej 2.5 bramki {n} razy z rzędu", "U": f"poniżej 2.5 bramki {n} razy z rzędu",
+        "B": f"obie strzelały {n} razy z rzędu", "nB": f"co najmniej jedna bez gola {n} razy z rzędu",
+    }[typ]
+
+
+def serie_wczesniejsze(df, h, v, stawki, uklad="u"):
+    """Przerwane serie pary w meczach df (chronologicznie) – każdego rodzaju, nie tylko jak obecny smaczek –
+    które w chwili przerwania spełniały próg smaczka (długość od progu i rzadkość, albo „bez wygranej” od 10 lat
+    i od 5 meczów). Ta sama seria szczegółowa i ogólna (np. 5 wygranych = 5 bez porażki) – tylko szczegółowa.
+    Zwraca listę od najnowszej: {"typ", "od", "do" (daty pierwszego i ostatniego meczu), "n", "indeksy", "tekst"}."""
+    n_all = len(df)
+    if n_all < 2:
+        return []
+    dom = df.home.to_numpy() == h
+    hg, vg = df.hgoal.to_numpy(), df.vgoal.to_numpy()
+    g, sc = np.where(dom, hg, vg), np.where(dom, vg, hg)
+    szanse = _szanse_meczow(df, h, stawki)
+    daty = df.Date.to_numpy()
+    znalezione = {}
+    for typ in RODZAJE_WCZESNIEJSZYCH:
+        if typ == "S":  # ten sam dokładny wynik z rzędu
+            klucze = list(zip(g, sc))
+            war = None
+        else:
+            war = warunek_serii(df, h, typ)
+        i = 0
+        while i < n_all:
+            if typ == "S":
+                j = i + 1
+                while j < n_all and klucze[j] == klucze[i]:
+                    j += 1
+            else:
+                if not war[i]:
+                    i += 1
+                    continue
+                j = i
+                while j < n_all and war[j]:
+                    j += 1
+            n = j - i
+            if j < n_all and n >= min_dlugosc(typ):  # przerwana (nie obecna) i od progu długości
+                rzadkosc = float(-np.log10(np.clip(szanse[typ][i:j], 1e-6, 1.0)).sum())
+                od = daty[i - 1] if i > 0 else daty[i]
+                lata = _lata(od, daty[j])
+                if rzadkosc >= C.MIN_RZADKOSC or (typ in ("nieP", "nieW") and n >= C.MIN_MECZOW_OD_LAT
+                                                   and lata >= C.MIN_LAT_BEZ_WYGRANEJ):
+                    znalezione[(typ, i, j)] = (int(g[i]), int(sc[i])) if typ == "S" else None
+            i = j
+    for (typ, i, j) in list(znalezione):  # 5 wygranych = 5 bez porażki: zostaje szczegółowa
+        if typ in ZAWIERA and any((k, i, j) in znalezione for k in ZAWIERA[typ]):
+            del znalezione[(typ, i, j)]
+    out = []
+    for (typ, i, j), wynik in znalezione.items():
+        out.append({"typ": typ, "od": df.Date.iloc[i], "do": df.Date.iloc[j - 1], "n": j - i,
+                    "indeksy": list(df.index[i:j]), "tekst": _opis_wczesniejszej(typ, j - i, h, v, uklad, wynik)})
+    return sorted(out, key=lambda x: (x["do"], x["n"]), reverse=True)
+
+
 def _istotna(s, ref):
     min_n = min_dlugosc(s.typ)
     if s.n >= min_n and s.rzadkosc >= C.MIN_RZADKOSC:
@@ -412,7 +530,7 @@ def _L(z):
 
 
 def _od_danych(s, z):
-    return f"dane od {z.dane_od(getattr(s.pierwszy, 'tier', None))}"
+    return z.zastrzezenie or f"dane od {z.dane_od(getattr(s.pierwszy, 'tier', None))}"
 
 
 def _zadnym(n, z):
@@ -556,16 +674,26 @@ def fakty_pary(h2h, h, v, ref, st, zakres=ANGLIA):
     if len(h2h) == 0:
         out.append(Fakt(C.WAGA_PIERWSZEGO_MECZU, pierwszy_mecz(z)))
 
+    def fakt(s, tekst_serii, typ, uklad):
+        b = luka_serii(s, z, h, v)
+        if b is None:
+            return Fakt(_waga(s, ref, z), tekst_serii(z), 10 ** -s.rzadkosc, typ, f"{uklad}:{s.typ}", s.n)
+        zl = z_luka(z, b)  # seria obejmuje sezon brakujący w archiwum: zastrzeżenie i niższa waga
+        tekst = tekst_serii(zl)
+        if not s.nigdy:
+            tekst += f" Uwaga: {zl.zastrzezenie}."
+        waga = _waga(s, ref, zl) * (1 if s.nigdy else C.WAGA_WYCINKA)
+        return Fakt(waga, tekst, 10 ** -s.rzadkosc, typ, f"{uklad}:{s.typ}", s.n)
+
     # wszystkie istotne serie pary: u gospodarza i we wszystkich meczach (u siebie i na wyjeździe)
     for df, tekst, uklad in [(boisko, _tekst_u_gospodarza, "u"), (h2h, _tekst_h2h, "h2h")]:
         for s in serie(df, h, st).values():
             if _istotna(s, ref):
-                out.append(Fakt(_waga(s, ref, z), tekst(s, h, v, z), 10 ** -s.rzadkosc,
-                                TYP_ZAKLADU[s.typ], f"{uklad}:{s.typ}", s.n))
+                out.append(fakt(s, lambda zz, s=s, tekst=tekst: tekst(s, h, v, zz), TYP_ZAKLADU[s.typ], uklad))
         for s in serie_bramek(df, h, st).values():
             if _istotna(s, ref):
-                out.append(Fakt(_waga(s, ref, z), _tekst_bramek(s, h, v, uklad == "h2h", z), 10 ** -s.rzadkosc,
-                                typ_serii(s), f"{uklad}:{s.typ}", s.n))
+                out.append(fakt(s, lambda zz, s=s, uklad=uklad: _tekst_bramek(s, h, v, uklad == "h2h", zz),
+                                typ_serii(s), uklad))
 
     out.sort(reverse=True)
     return out
@@ -590,13 +718,22 @@ def _opis(r):
     return f"{r.home} – {r.visitor} {r.hgoal}:{r.vgoal} ({fmt(r.Date)}, poziom {r.tier})"
 
 
+def _bez_luki(z, h, v):
+    """Zakres pary: przy brakującym sezonie, w którym para mogła grać – jak wycinek (bez „nigdy”)."""
+    for b in z.brak:
+        if not z.przy_luce or (h in z.przy_luce and v in z.przy_luce):
+            return z_luka(z, b)
+    return z
+
+
 def karta_meczu(hist, h, v, ref=None, zakres=ANGLIA):
     """Pełny zestaw informacji o parze (lista linii)."""
-    z = zakres
+    z = _bez_luki(zakres, h, v)
     out = []
     if z.w or not z.pelna:
         out.append(f"Zakres danych: mecze {z.w or 'ligowe wszystkich poziomów'}"
-                   + ("" if z.pelna else f", tylko od {z.dane_od()} (wcześniejszej historii nie ma w danych)") + ".")
+                   + ("" if z.pelna else (f", {z.zastrzezenie}" if z.zastrzezenie else
+                                          f", tylko od {z.dane_od()} (wcześniejszej historii nie ma w danych)")) + ".")
     boisko = hist[(hist.home == h) & (hist.visitor == v)]
     if len(boisko):
         w = list(wyniki(boisko, h))
@@ -684,11 +821,12 @@ def ranking(hist, top=25, tier=None, min_mecze=C.RANKING_MIN_MECZOW, lat_wstecz=
             tekst = f"{v} nie wygrał u {h} od {lat(_lata(od, koniec))} ({mecze(meczow)}; ostatnio {fmt(od)})"
         else:
             od = g.Date.iloc[0]
-            if z.pelna:
+            zp = _bez_luki(z, h, v)
+            if zp.pelna:
                 tekst = f"{v} NIGDY nie wygrał{_L(z)} u {h} ({mecze(len(g))} od {od.year} r.)"
             else:
                 tekst = (f"{v} nie wygrał{_L(z)} u {h} w żadnym z {len(g)} meczów od {od.year} r. "
-                         f"(dane od {z.dane_od(int(g.tier.iloc[0]))})")
+                         f"({zp.zastrzezenie or 'dane od ' + str(z.dane_od(int(g.tier.iloc[0])))})")
         wiersze.append((_lata(od, koniec), tekst))
     wiersze.sort(reverse=True)
     return [tekst for _, tekst in wiersze[:top]]

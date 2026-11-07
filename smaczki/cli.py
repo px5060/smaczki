@@ -17,7 +17,8 @@ from .data_loader import (BladDanych, Mecz, pobierz_archiwum, wczytaj_archiwum, 
                           wybierz_ligi, zbierz, zbierz_kraje)
 from .names import Nazwy
 from .report import Pozycja, ostateczny_tekst, powiadomienie, raport_html, raport_txt, typ_tekst
-from .rules import fmt, karta_meczu, ostatni_u_gospodarza, ranking, smaczki, wyniki_pary, zakres_kraju
+from .rules import (fmt, karta_meczu, ostatni_u_gospodarza, ranking, smaczki, stawki_sezonow, wyniki_pary,
+                    zakres_kraju)
 
 if hasattr(sys.stdout, "reconfigure"):  # polskie znaki w konsoli Windows
     for strumien in (sys.stdout, sys.stderr):
@@ -82,7 +83,7 @@ def _pozycje(dane, terminarz, dzis):
     """Smaczki dla listy meczów; dla każdego meczu tylko historia sprzed jego daty."""
     przed = {}
     out = []
-    zakres = zakres_kraju(dane.kraj, dane.poziomy)
+    zakres = zakres_kraju(dane.kraj, dane.poziomy, dane.hist)
     for m in terminarz:
         h, v = dane.nazwy(m.home), dane.nazwy(m.away)
         dzien = m.data.date() if m.data else None
@@ -93,7 +94,7 @@ def _pozycje(dane, terminarz, dzis):
         wyn = wyniki_pary(hist, h, v)
         out.append(Pozycja(m.data, m.liga, h, v, smaczki(hist, h, v, ref, zakres),
                            ostatni=ostatni_u_gospodarza(hist, h, v), wyniki=wyn, kursy=m.kursy,
-                           kraj=dane.kraj, zakres=zakres))
+                           kraj=dane.kraj, zakres=zakres, stawki=stawki_sezonow(hist)))
     return out
 
 
@@ -266,7 +267,7 @@ def cmd_mecz(a):
                   z_terminarzem=False, kraj=kraj, poziomy=poziomy)
     for o in dane.ostrzezenia:
         print("UWAGA: " + o)
-    zakres = zakres_kraju(kraj, dane.poziomy)
+    zakres = zakres_kraju(kraj, dane.poziomy, dane.hist)
     h, v = _znajdz(dane, a.gospodarz), _znajdz(dane, a.gosc)
     kraj_txt = "" if kraj == C.KRAJ_DOMYSLNY else f"{dane.nazwa_kraju}; "
     print(f"=== {h} – {v} ===  ({kraj_txt}historia ligowa do {dane.hist.Date.max():%d.%m.%Y}; {dane.zrodlo})")
@@ -309,7 +310,7 @@ def cmd_ranking(a):
             continue
         liga = f", {ligi[a.tier]}" if a.tier else ""
         kraj_txt = "" if kraj == C.KRAJ_DOMYSLNY else f"{dane.nazwa_kraju}: "
-        zakres = zakres_kraju(kraj, dane.poziomy)
+        zakres = zakres_kraju(kraj, dane.poziomy, dane.hist)
         print(f"=== {kraj_txt}Najdłuższe passy gości bez wygranej u danego rywala{liga} "
               f"(pary grające ze sobą w ostatnich {C.RANKING_LAT} latach; historia do {dane.hist.Date.max():%d.%m.%Y}"
               + (f"; {zakres.opis}" if zakres.opis else "") + ") ===")

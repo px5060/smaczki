@@ -13,6 +13,8 @@ class Kraj:
     w: dict = field(default_factory=dict)  # poziomy -> dopisek zakresu w smaczkach, np. (1,): "w 1. lidze";
                                            # () = wszystkie poziomy ligowe kraju są w danych (bez dopisku)
     od_poziomu: dict = field(default_factory=dict)  # poziom -> pierwszy sezon, gdy inny niż `od`
+    brak: tuple = ()     # sezony rozegrane, ale brakujące w archiwum i nie do uzupełnienia (np. Francja 1937/38):
+                         # serie, które je obejmują, dostają zastrzeżenie zamiast „nigdy” i niższą wagę
     uwagi: str = ""      # opis kompletności danych (na stronę)
 
 
@@ -28,6 +30,18 @@ KRAJE = {
                   uwagi="La Liga od 1928/29 (przerwa 1936–1939 – wojna domowa)"),
     "italy": Kraj("Włochy", {"I1": ("Serie A", 1, 135)}, od=1929, pelna=True, w={(1,): "w 1. lidze"},
                   uwagi="Serie A od 1929/30 (przerwa 1943–1945 – wojna)"),
+    "germany": Kraj("Niemcy", {"D1": ("Bundesliga", 1, 78), "D2": ("2. Bundesliga", 2, 79)}, od=1963, pelna=True,
+                    w={(1,): "w Bundeslidze", (2,): "w 2. Bundeslidze", (1, 2): "w 1. i 2. Bundeslidze"},
+                    od_poziomu={2: 1974},
+                    uwagi="Bundesliga od 1963/64 i 2. Bundesliga od 1974/75 (od początku tych lig); bez niższych lig "
+                          "i bez dawnych Oberlig"),
+    "france": Kraj("Francja", {"F1": ("Ligue 1", 1, 61)}, od=1932, pelna=True, w={(1,): "w 1. lidze"}, brak=(1937,),
+                   uwagi="1. liga od 1932/33 (od początku ligi zawodowej; przerwa 1939–1945 – wojna). Archiwum nie ma "
+                         "sezonu 1937/38 – serie obejmujące ten sezon mają zastrzeżenie; 1994/95 jest uzupełniany "
+                         "z football-data.co.uk"),
+    "holland": Kraj("Holandia", {"N1": ("Eredivisie", 1, 88)}, od=1956, pelna=True, w={(1,): "w Eredivisie"},
+                    uwagi="Eredivisie od 1956/57 (od początku tej ligi); wcześniejsze mistrzostwa Holandii nie są "
+                          "w danych, dlatego smaczki mówią „w Eredivisie”"),
 }
 KRAJ_DOMYSLNY = "england"
 PLIK_LIG = "ligi.json"  # włączone kraje i poziomy, np. {"england": [1, 2, 3, 4], "spain": [1]}

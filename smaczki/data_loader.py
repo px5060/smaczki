@@ -132,9 +132,14 @@ def wczytaj_archiwum(sciezka, kraj=C.KRAJ_DOMYSLNY, poziomy=None):
     d["Season"] = pd.to_numeric(d["Season"], errors="coerce").fillna(0).astype(int)
     if poziomy is not None:
         d = d[d.tier.isin(list(poziomy))].copy()
-    ujednolic = wczytaj_aliasy(kraj).get("archiwum", {})
+    aliasy = wczytaj_aliasy(kraj)
+    ujednolic = aliasy.get("archiwum", {})
+    w_sezonach = aliasy.get("archiwum_sezony", {})  # {nazwa: {sezon: właściwa nazwa}} – dwa kluby pod jedną nazwą
     for kol in ("home", "visitor"):
         d[kol] = d[kol].astype(str).str.strip()
+        for nazwa, sezony in w_sezonach.items():
+            for sezon, nowa in sezony.items():
+                d.loc[(d[kol] == nazwa) & (d.Season == int(sezon)), kol] = nowa
         if ujednolic:
             d[kol] = d[kol].replace(ujednolic)
     d["zrodlo"] = "archiwum"

@@ -1,13 +1,13 @@
 """Raporty: tekst (konsola / plik), strona HTML na telefon i treść powiadomienia."""
 import datetime as dt
 import html
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pandas as pd
 
 from . import config as C
-from .rules import (TypWspolny, fmt, klucz_wyboru, kurs_typu, mecze, min_dlugosc, odmiana, przebieg_serii,
-                    rynek_typu, typ_ostateczny, typy_wspolne)
+from .rules import (TypWspolny, fmt, klucz_wyboru, kurs_typu, mecze, odmiana, przebieg_serii, rynek_typu,
+                    serie_wczesniejsze, typ_ostateczny, typy_wspolne)
 
 DNI = ["poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota", "niedziela"]
 DNI_KROTKO = ["pn", "wt", "śr", "czw", "pt", "sob", "nd"]
@@ -27,6 +27,23 @@ class Pozycja:
     kursy: tuple = None     # aktualne średnie kursy (1, X, 2), jeśli są
     kraj: str = C.KRAJ_DOMYSLNY
     zakres: object = None   # rules.Zakres – zakres danych kraju (None = Anglia: pełna historia 4 poziomów)
+    stawki: object = None   # odsetki wyników sezonów (rules.stawki_sezonow) – do wcześniejszych serii pary
+    _wcz: dict = field(default_factory=dict, repr=False, compare=False)
+
+    def mecze_ukladu(self, uklad):
+        """Mecze pary chronologicznie: "u" – u gospodarza, "h2h" – wszystkie (u siebie i na wyjeździe)."""
+        if not self.wyniki:
+            return None
+        u, rew = self.wyniki["u_gosp"], self.wyniki["rewanze"]
+        return u.iloc[::-1] if uklad == "u" else pd.concat([u, rew]).sort_values("Date", kind="stable")
+
+    def wczesniejsze(self, uklad):
+        """Przerwane serie pary każdego rodzaju, które spełniały próg smaczka (rules.serie_wczesniejsze)."""
+        if uklad not in self._wcz:
+            df = self.mecze_ukladu(uklad)
+            st = self.stawki if self.stawki is not None else pd.DataFrame(columns=["1", "X", "2", "O", "B"], dtype=float)
+            self._wcz[uklad] = [] if df is None else serie_wczesniejsze(df, self.h, self.v, st, uklad)
+        return self._wcz[uklad]
 
     @property
     def waga(self):
@@ -521,6 +538,23 @@ def _teraz(df_od_najnowszego, f):
     return {i: "teraz" for i in df_od_najnowszego.index[:f.n]} if f is not None else {}
 
 
+def _znaczniki(teraz, wczesniejsze):
+    """Zielone – obecna seria, niebieskie – mecze wcześniejszych serii pary (poza obecną)."""
+    z = dict(teraz)
+    for s in wczesniejsze:
+        for i in s["indeksy"]:
+            z.setdefault(i, "dawniej")
+    return z
+
+
+def _spis_wczesniejszych(wczesniejsze):
+    if not wczesniejsze:
+        return '<div class="opis">Wcześniej nie było serii między tymi drużynami (od progu smaczka).</div>'
+    lata = lambda s: f"{s['od'].year}–{s['do'].year}" if s["od"].year != s["do"].year else f"{s['od'].year}"
+    return ('<span class="lg dawniej">wcześniejsze serie między drużynami</span>'
+            f'<div class="opis">Wcześniejsze serie: {e("; ".join(lata(s) + ": " + s["tekst"] for s in wczesniejsze))}.</div>')
+
+
 def _legenda_serii(f, gdzie=""):
     if f is None:
         return ""
@@ -540,7 +574,10 @@ def _wyniki_html(p):
     czesci = []
     if len(u):
         tytul = f"Pokaż wyniki: {mecze(len(u))} u {p.h}"
-        czesci.append(_bilans(u, p.h, p.v, zakres) + _legenda_serii(s_u, " ") + _tabela_u_gospodarza(u, _teraz(u, s_u)))
+        wcz = p.wczesniejsze("u")
+        czesci.append(_bilans(u, p.h, p.v, zakres) + _legenda_serii(s_u, " ")
+                      + _tabela_u_gospodarza(u, _znaczniki(_teraz(u, s_u), wcz))
+                      + (f'<div class="legenda">{_spis_wczesniejszych(wcz)}</div>' if wcz else ""))
         if s_h2h is not None and s_u is None and len(rew):
             czesci.append('<p class="legenda">Seria ze smaczka obejmuje mecze u siebie i na wyjeździe – jest zaznaczona '
                           'w tabeli „Wszystkie mecze pary” niżej.</p>')
@@ -561,36 +598,31 @@ def _wyniki_html(p):
                       f'<p class="podsum">{e(p.h)} – wygrane: {z.count("W")} · remisy: {z.count("R")} · '
                       f'porażki: {z.count("P")} (W/R/P z perspektywy {e(p.h)}'
                       f'{"; " + e(zakres) if zakres else ""})</p>{_legenda_serii(s_h2h, " ")}'
-                      f'{_tabela_pary(razem, p.h, _teraz(razem, s_h2h))}</details>')
+                      f'{_tabela_pary(razem, p.h, _znaczniki(_teraz(razem, s_h2h), p.wczesniejsze("h2h")))}'
+                      + (f'<div class="legenda">{_spis_wczesniejszych(p.wczesniejsze("h2h"))}</div>'
+                         if p.wczesniejsze("h2h") else "") + '</details>')
     return f'<details class="wyniki"><summary>{e(tytul)}</summary>{"".join(czesci)}</details>'
 
 
 def seria_html(p, t, z_opisem=True):
-    """Mecze pary, z których wynika typ t (TypWspolny z regułą serii): obecna seria na zielono,
-    wcześniejsze przerwane serie tego samego rodzaju na niebiesko; od najnowszego meczu.
+    """Mecze pary, z których wynika typ t (TypWspolny z regułą serii): obecna seria na zielono, wcześniejsze serie
+    między drużynami (każdego rodzaju, które spełniały próg smaczka) na niebiesko; od najnowszego meczu.
     z_opisem=False – bez powtórzenia tekstu smaczka (gdy jest już nad tabelą)."""
     if not p.wyniki or not t.regula:
         return ""
     uklad, rodzaj = t.regula.split(":")
-    u, rew = p.wyniki["u_gosp"], p.wyniki["rewanze"]
-    df = u.iloc[::-1] if uklad == "u" else pd.concat([u, rew]).sort_values("Date", kind="stable")
-    if not len(df):
+    df = p.mecze_ukladu(uklad)
+    if df is None or not len(df):
         return ""
     wynik = tuple(int(x) for x in t.typ[1:].split(":")) if rodzaj == "S" else None
-    etykiety, wczesniejsze = przebieg_serii(df, p.h, rodzaj, wynik)
-    znaczniki = {i: et for i, et in zip(df.index, etykiety) if et}
-    teraz = sum(1 for et in etykiety if et == "teraz")
+    etykiety, _ = przebieg_serii(df, p.h, rodzaj, wynik)
+    teraz = {i: "teraz" for i, et in zip(df.index, etykiety) if et == "teraz"}
+    wcz = p.wczesniejsze(uklad)
+    znaczniki = _znaczniki(teraz, wcz)
     gdzie = f"mecze u {p.h} z {p.v}" if uklad == "u" else f"wszystkie mecze {p.h} z {p.v} (u siebie i na wyjeździe)"
     if _opis_zakresu(p):
         gdzie += f" – {_opis_zakresu(p)}"
-    legenda = f'<span class="lg teraz">obecna seria – {mecze(teraz)}</span>'
-    if wczesniejsze:
-        spis = ", ".join(f"{od.year}–{do.year} ({mecze(n)})" if od.year != do.year else f"{od.year} ({mecze(n)})"
-                         for od, do, n in wczesniejsze)
-        legenda += (f'<span class="lg dawniej">wcześniejsze serie tego rodzaju (od {mecze(min_dlugosc(rodzaj))})'
-                    f'</span><div class="opis">Wcześniejsze serie: {e(spis)}.</div>')
-    else:
-        legenda += f'<div class="opis">Wcześniej nie było takiej serii (od {mecze(min_dlugosc(rodzaj))}).</div>'
+    legenda = f'<span class="lg teraz">obecna seria – {mecze(len(teraz))}</span>' + _spis_wczesniejszych(wcz)
     nowe = df.iloc[::-1]
     tabela = _tabela_u_gospodarza(nowe, znaczniki) if uklad == "u" else _tabela_pary(nowe, p.h, znaczniki)
     opis = f'<div class="opis">{e(t.fakt.tekst) + " " if t.fakt and z_opisem else ""}Pokazane: {e(gdzie)}.</div>'

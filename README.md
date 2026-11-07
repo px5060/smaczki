@@ -1,8 +1,8 @@
 # Smaczki meczowe
 
 Codziennie rano strona na telefon (i opcjonalnie powiadomienie) z odpowiedzią na pytanie:
-**czy dziś albo jutro w Premier League, Championship, League One, League Two, La Liga albo Serie A jest mecz ze smaczkiem
-z długą historią?** Które kraje i poziomy są włączone, ustala plik [`ligi.json`](ligi.json).
+**czy dziś albo jutro w Premier League, Championship, League One, League Two, La Liga, Serie A, Bundeslidze,
+2. Bundeslidze, Ligue 1 albo Eredivisie jest mecz ze smaczkiem z długą historią?** Które kraje i poziomy są włączone, ustala plik [`ligi.json`](ligi.json).
 
 Przykład z 7.11.2026:
 
@@ -24,8 +24,8 @@ Przykład z 7.11.2026:
 
 | Co | Źródło | Klucz |
 |---|---|---|
-| Historia do maja 2025: Anglia od 08.09.1888 (208 028 meczów), Hiszpania od 10.02.1929, Włochy od 06.10.1929 | [engsoccerdata](https://github.com/jalapic/engsoccerdata), pliki `data-raw/england.csv`, `spain.csv`, `italy.csv`, pobierane automatycznie przy pierwszym użyciu kraju (nie są w repo) | nie |
-| Brakujący w archiwum sezon 2022/23 (Anglia), wyniki od sezonu 2025/26 i terminarz najbliższych dni | **football-data.co.uk**: pliki `mmz4281/<sezon>/<liga>.csv` (E0–E3, SP1, I1; wyniki aktualizowane ok. 2 razy w tygodniu) i `fixtures.csv` (mecze najbliższych dni) | nie |
+| Historia do maja 2025: Anglia od 08.09.1888 (208 028 meczów), Hiszpania od 1929, Włochy od 1929, Niemcy od 1963, Francja od 1933, Holandia od 1956 | [engsoccerdata](https://github.com/jalapic/engsoccerdata), pliki `data-raw/<kraj>.csv`, pobierane automatycznie przy pierwszym użyciu kraju (nie są w repo) | nie |
+| Brakujące w archiwum sezony (Anglia 2022/23, Francja 1994/95), wyniki od sezonu 2025/26 i terminarz najbliższych dni | **football-data.co.uk**: pliki `mmz4281/<sezon>/<liga>.csv` (E0–E3, SP1, I1, D1, D2, F1, N1; wyniki aktualizowane ok. 2 razy w tygodniu) i `fixtures.csv` (mecze najbliższych dni) | nie |
 | …albo zamiast tego | API-Football v3 (jedno zapytanie na ligę i sezon: ok. 12 przy pierwszym uruchomieniu, potem 4) | tak, `API_FOOTBALL_KEY` |
 
 Domyślnie (`--zrodlo auto`): API-Football, jeśli ustawiony jest klucz, w przeciwnym razie football-data.co.uk.
@@ -46,17 +46,26 @@ z poziomów z `ligi.json`). Opis krajów (kody lig, początek danych, czy to pe�
 | Anglia | Premier League, Championship, League One, League Two | 1888/89 | pełna (wszystkie 4 poziomy) |
 | Hiszpania | La Liga | 1928/29 | pełna historia 1. ligi (przerwa 1936–1939 – wojna domowa) |
 | Włochy | Serie A | 1929/30 | pełna historia 1. ligi (przerwa 1943–1945 – wojna) |
+| Niemcy | Bundesliga, 2. Bundesliga | 1963/64 (2. BL od 1974/75) | pełna historia obu lig (od ich początku) |
+| Francja | Ligue 1 | 1932/33 | pełna historia 1. ligi poza sezonem 1937/38, którego brakuje w archiwum (1994/95 jest uzupełniany z football-data.co.uk) |
+| Holandia | Eredivisie | 1956/57 | pełna historia Eredivisie (od jej początku; wcześniejszych mistrzostw nie ma) |
 
-W Hiszpanii i we Włoszech w danych jest tylko 1. liga, więc smaczki to zaznaczają: „Granada CF NIGDY nie wygrał
-w 1. lidze u Valencia CF (27 meczów od 1942 r.)”, „US Cremonese NIGDY nie wygrał w 1. lidze u Lazio Roma (8 meczów
-od 1929 r.)” – mecze w 2. lidze nie są liczone. To samo zastrzeżenie jest przy bilansach w „Pokaż wyniki”, w karcie pary
-(`mecz`) i w rankingu.
+Poza Anglią w danych są tylko niektóre poziomy ligowe, więc smaczki to zaznaczają: „Granada CF NIGDY nie wygrał
+w 1. lidze u Valencia CF (27 meczów od 1942 r.)”, „Eintracht Braunschweig NIGDY nie wygrał w 1. i 2. Bundeslidze
+u 1. FC Koln (24 mecze od 1964 r.)”, „Go Ahead Eagles NIGDY nie wygrał w Eredivisie u AFC Ajax (35 meczów od 1964 r.)” –
+mecze w niższych ligach (i w Niemczech przed Bundesligą, w Holandii przed Eredivisie) nie są liczone. To samo
+zastrzeżenie jest przy bilansach w „Pokaż wyniki”, w karcie pary (`mecz`) i w rankingu.
+
+**Francja 1937/38:** tego sezonu nie ma w archiwum (ani w football-data.co.uk). Seria, w czasie której para mogła
+zagrać w tym sezonie (obie drużyny grały w 1. lidze w 1936/37 albo 1938/39), nie dostaje słowa „nigdy”, tylko
+zastrzeżenie „(w danych brak sezonu 1937/38)”, i ma o połowę niższą wagę. Wśród obecnych drużyn Ligue 1 nie dotyczy
+to żadnej obecnej serii.
 
 **Początek danych to nie zawsze początek historii.** Dla kraju, którego archiwum jest tylko wycinkiem historii
 (`pelna=False` w `config.KRAJE`, np. gdyby dopisać Szkocję od 1994), słowa „nigdy” nie ma: „X nie wygrał u Y w żadnym
 z 45 meczów ligowych od 1994 r. (dane od 1994)”, a waga takiej serii jest o połowę niższa (`WAGA_WYCINKA`).
 
-Uzupełnienie od maja 2025 działa jak dla Anglii (football-data.co.uk ma La Liga i Serie A, sezony 2025/26 i 2026/27).
+Uzupełnienie od maja 2025 działa jak dla Anglii (football-data.co.uk ma wszystkie te ligi, sezony 2025/26 i 2026/27).
 Raport podaje **dla każdej ligi** datę ostatniego meczu w historii, liczbę dopisanych meczów i ostrzeżenie, gdy luka nie
 jest zamknięta (źródło nie zwróciło wyników któregoś sezonu). Ten sam mecz z archiwum i ze źródła bieżącego (ta sama
 data i para) jest liczony raz, a sezon, który jest w archiwum, zostaje z archiwum.
@@ -78,19 +87,22 @@ data i para) jest liczony raz, a sezon, który jest w archiwum, zostaje z archiw
 ### Strona
 
 U góry **kalendarz**: kolejne dni z meczami (terminarz football-data.co.uk obejmuje zwykle kilka najbliższych dni),
-przy każdym dniu liczba meczów z ★. Po wybraniu dnia: **kafelki krajów** (Anglia, Hiszpania, Włochy) – na kafelku
+przy każdym dniu liczba meczów z ★. Po wybraniu dnia: **kafelki krajów** (Anglia, Hiszpania, Włochy, Niemcy, Francja, Holandia) – na kafelku
 **★ i liczba meczów ze smaczkami**, liczba meczów tego dnia i ile z nich ma długą historię. Kliknięcie kafelka pokazuje
-**ligi kraju** jako rozwijane zakładki z licznikami (Anglia: Premier League, Championship, League One, League Two;
-Hiszpania i Włochy: jedna liga, od razu rozwinięta); po rozwinięciu mecze ze smaczkami, od najciekawszego. Ponowne
+**ligi kraju** jako rozwijane zakładki z licznikami (Anglia: Premier League, Championship, League One, League Two; Niemcy: Bundesliga i 2. Bundesliga;
+kraj z jedną ligą: od razu rozwinięta); po rozwinięciu mecze ze smaczkami, od najciekawszego. Ponowne
 kliknięcie kafelka go zamyka. Wybrany dzień i kraj są zapamiętane w adresie (#RRRR-MM-DD/kraj).
 **Mecze bez żadnej serii** (1X2, under/over, obie strzelą, dokładny wynik) **nie są pokazywane**; liga bez nich
 ma dopisek „brak smaczków”. Na dole dnia **ostateczna predykcja dnia** i pod nią **wszystkie typy dnia**: każdy mecz z serią
 w jednej linii (godzina, mecz, ostateczny typ, kurs, długość serii), od najdłuższej serii.
 
 Kliknięcie w **smaczek** („mecze serii ▾”), w typ na liście typów dnia albo w „★ OSTATECZNY TYP” przy meczu rozwija
-mecze pary, z których wynika seria: **obecna seria na zielono**, **wcześniejsze, przerwane serie tego samego rodzaju na niebiesko** (od progu
-długości, np. 4 mecze dla 1X2, 8 dla goli), mecze, które przerywały serie – bez tła. Pod legendą spis wcześniejszych
-serii z latami, np. „1965–1980 (7 meczów), 1947–1952 (6 meczów)”.
+mecze pary, z których wynika seria: **obecna seria na zielono**, **wcześniejsze serie między drużynami na niebiesko** –
+każdego rodzaju, nie tylko takie jak obecny smaczek (wygrane, remisy, „bez wygranej”, „bez remisu”, gole, ten sam wynik),
+o ile w chwili przerwania spełniały próg smaczka (ta sama zasada co dla obecnych serii); pozostałe mecze – bez tła.
+Pod legendą spis wcześniejszych serii z latami, np. „2008–2020: Birmingham City bez wygranej z Swansea City – 6 meczów;
+1982–1995: poniżej 2.5 bramki 10 razy z rzędu; 1953–1980: Birmingham City wygrał 6 razy z rzędu”. To samo zaznaczenie
+(zielone i niebieskie) jest w tabelach „Pokaż wyniki”.
 
 ### Podgląd wyników
 
@@ -274,7 +286,9 @@ Aliasy są **osobno dla każdego kraju**: `smaczki/aliasy/<kraj>.json` (ten sam 
 krajach). Sekcje pliku:
 - `aliasy` – nazwa ze źródła → nazwa w archiwum (np. `"Ath Madrid": "Atletico Madrid"`, `"Espanol": "Espanyol Barcelona"`),
 - `archiwum` – ten sam klub zapisany w archiwum pod kilkoma nazwami → jedna nazwa, żeby historia pary się nie rozpadała
-  (np. Parma AC → Parma FC, Salernitana Sport → Salernitana Calcio 1919),
+  (np. Parma AC → Parma FC, Feijenoord → Feyenoord, TSV 1860 Munchen → 1860 Munchen, FC Den Haag → ADO Den Haag),
+- `archiwum_sezony` – odwrotnie: dwa różne kluby pod jedną nazwą w archiwum, rozdzielone po sezonach (np. sezon 2015/16
+  „AC Ajaccio” to w rzeczywistości Gazelec Ajaccio),
 - `nowe_kluby` – nazwy, które nie są klubem z archiwum, choć brzmią podobnie (nowy klub bez historii),
 - `uwagi` – wyjaśnienia decyzji.
 
@@ -288,7 +302,7 @@ Kolejność dopasowania: alias, dokładna nazwa (także bez znaków diakrytyczny
 grał najpóźniej, np. obecny „Accrington”, a nie „Accrington Stanley” z lat 1921–1962), podobieństwo tekstu (difflib, próg
 0,75). Nazwa bez dopasowania zostaje bez zmian (nowy klub bez historii), a aplikacja po każdym uruchomieniu wypisuje
 listę takich nazw **z najbliższymi kandydatami z archiwum**, żeby łatwo dopisać alias (albo nazwę do `nowe_kluby`).
-Wszystkie nazwy z football-data.co.uk z sezonów 2025/26 i 2026/27 (Anglia, Hiszpania, Włochy) są sprawdzane w testach.
+Wszystkie nazwy z football-data.co.uk z sezonów 2025/26 i 2026/27 (wszystkie włączone kraje) są sprawdzane w testach.
 
 ## Testy
 
@@ -298,7 +312,8 @@ python -m unittest discover -s tests -t .
 
 Kryteria akceptacji z briefu na prawdziwym archiwum (plus wykrycie luki 2022/23) (Arsenal – Fulham, Manchester United – Luton, Derby – Lincoln,
 Wolves – Sheffield United, Luton – Portsmouth, Bradford – Accrington), kryteria briefu lig (`tests/test_ligi.py`:
-Granada – Valencia, Cremonese – Lazio, „w 1. lidze”, wycinek historii bez „nigdy”, diakrytyki, brak duplikatów na styku
+Granada – Valencia, Cremonese – Lazio, Braunschweig – Köln, Le Havre – Marsylia, Go Ahead Eagles – Ajax,
+Francja 1937/38, „w 1. lidze”, wycinek historii bez „nigdy”, diakrytyki, brak duplikatów na styku
 danych, aliasy, raport per liga, kafelki krajów na stronie) oraz ścieżki API-Football i football-data.co.uk na
 zamockowanych odpowiedziach (dopisanie wyników, uzupełnienie brakującego sezonu, terminarz tylko z `NS/TBD` w zakresie
 dat, cache, budżet zapytań, mapowanie nazw, błąd planu), tryb bez klucza, podgląd wyników na stronie i powiadomienia. Testy na archiwum są pomijane, jeśli nie ma `dane/<kraj>.csv` (`python -m smaczki pobierz`).
@@ -306,9 +321,10 @@ dat, cache, budżet zapytań, mapowanie nazw, błąd planu), tryb bez klucza, po
 ## Ograniczenia
 
 - Tylko mecze ligowe (bez pucharów).
-- Kluby, które grały poza ligami z danych (np. w National League albo w 2. lidze Hiszpanii czy Włoch),
+- Kluby, które grały poza ligami z danych (np. w National League, w 2. lidze Hiszpanii, Włoch, Francji czy Holandii,
+  w 3. lidze Niemiec),
   nie mają w danych meczów z tego okresu.
-- Skuteczność typów („w przeszłości …”) jest policzona na 4 ligach angielskich i pokazywana także przy meczach La Liga i Serie A.
+- Skuteczność typów („w przeszłości …”) jest policzona na 4 ligach angielskich i pokazywana także przy meczach innych lig.
 - Bez polskiej ligi (brak w archiwum).
 - „U drużyny X” = mecze, w których X był gospodarzem (bez rozróżniania stadionów).
 - football-data.co.uk dopisuje wyniki z opóźnieniem do kilku dni; na serie gospodarz–gość to nie wpływa
