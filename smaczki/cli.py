@@ -12,7 +12,7 @@ import urllib.request
 import pandas as pd
 
 from . import config as C
-from . import skutecznosc
+from . import kopia, skutecznosc
 from .data_loader import (BladDanych, Mecz, pobierz_archiwum, wczytaj_archiwum, wlaczone_ligi,
                           wybierz_ligi, zbierz, zbierz_kraje)
 from .names import Nazwy
@@ -394,6 +394,17 @@ def cmd_skutecznosc(a):
     print(f"Zapisano {skutecznosc.PLIK}")
 
 
+def cmd_kopia(a):
+    """Kopia danych źródłowych w jednym ZIP-ie (do przechowania u siebie) albo przywrócenie z kopii."""
+    if a.przywroc:
+        n = kopia.przywroc(a.przywroc, a.dane)
+        print(f"Przywrócono {n} plików z {a.przywroc} do {a.dane}/.")
+        return
+    plik = a.plik or f"kopia_danych_{dt.date.today():%Y-%m-%d}.zip"
+    n, rozmiar = kopia.utworz(a.dane, _ligi(a)[0], plik)
+    print(f"Kopia gotowa: {plik} ({n} plików, {rozmiar / 1e6:.1f} MB). Przechowuj ją u siebie, nie publikuj.")
+
+
 def cmd_pobierz(a):
     for kraj in _ligi(a)[0]:
         plik = pobierz_archiwum(a.archiwum or a.dane, wymus=a.wymus, kraj=kraj)
@@ -450,6 +461,10 @@ def main(argv=None):
     sub.add_parser("nazwy", parents=[wspolne], help="kontrola dopasowania nazw drużyn")
     p = sub.add_parser("skutecznosc", parents=[wspolne], help="przelicz skuteczność typów na historii z kursami")
     p.add_argument("--od-sezonu", type=int, default=2005, help="pierwszy sezon testu (domyślnie 2005 = 2005/06)")
+    p = sub.add_parser("kopia", parents=[wspolne],
+                       help="kopia danych źródłowych w jednym ZIP-ie (archiwa + football-data.co.uk) albo przywrócenie")
+    p.add_argument("--plik", help="nazwa pliku ZIP (domyślnie kopia_danych_RRRR-MM-DD.zip)")
+    p.add_argument("--przywroc", metavar="ZIP", help="przywróć dane z kopii do folderu --dane")
     p = sub.add_parser("pobierz", parents=[wspolne], help="pobierz archiwa engsoccerdata włączonych krajów")
     p.add_argument("--wymus", action="store_true", help="pobierz ponownie, nawet jeśli plik już jest")
 
@@ -469,6 +484,8 @@ def main(argv=None):
             cmd_nazwy(a)
         elif a.polecenie == "skutecznosc":
             cmd_skutecznosc(a)
+        elif a.polecenie == "kopia":
+            cmd_kopia(a)
         elif a.polecenie == "pobierz":
             cmd_pobierz(a)
     except BladDanych as e:

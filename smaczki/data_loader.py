@@ -217,23 +217,64 @@ def _fd_get(url):
         raise BladDanych(f"football-data.co.uk jest niedostępne ({e}).") from e
 
 
+UWAGI_ZRODLA = []  # (błąd, co, kiedy kopia albo None = brak kopii) – źródło niedostępne; zbiera je zbierz()
+
+
+def _zapisz_plik(plik, raw):
+    os.makedirs(os.path.dirname(plik) or ".", exist_ok=True)
+    tmp = plik + ".tmp"
+    with open(tmp, "wb") as f:
+        f.write(raw)
+    os.replace(tmp, plik)
+
+
+def _kopia_lub_blad(plik, blad, co):
+    """Źródło niedostępne: ostatnia zapisana kopia pliku (z ostrzeżeniem) albo błąd, gdy kopii nie ma."""
+    if not os.path.exists(plik):
+        raise blad
+    with open(plik, "rb") as f:
+        raw = f.read()
+    kiedy = dt.datetime.fromtimestamp(os.path.getmtime(plik)).strftime("%d.%m.%Y %H:%M")
+    UWAGI_ZRODLA.append((str(blad), co, kiedy))
+    return raw
+
+
+def _uwagi_kopii(uwagi):
+    """Jedno ostrzeżenie zamiast wielu: które pliki wzięto z zapisanej kopii, których kopii nie było."""
+    if not uwagi:
+        return []
+    z_kopii = [f"{co} (z {kiedy})" for _, co, kiedy in uwagi if kiedy]
+    bez = [co for _, co, kiedy in uwagi if not kiedy]
+    tekst = f"{uwagi[0][0]} Użyto zapisanych kopii: {', '.join(z_kopii)}." if z_kopii else uwagi[0][0]
+    if bez:
+        tekst += f" Bez kopii (pominięte): {', '.join(bez)}."
+    return [tekst + " Nowsze wyniki mogą nie być uwzględnione."]
+
+
 def fd_wyniki(sezon, cache_dir, biezacy, ligi=None):
     """Zakończone mecze lig (domyślnie 4 angielskich) w sezonie. Zakończone sezony czytane z cache,
-    bieżący pobierany zawsze."""
+    bieżący pobierany zawsze; jego ostatnia pobrana wersja jest zapisywana (fd_<sezon>_<liga>_ostatni.csv)
+    i używana, gdy football-data.co.uk jest niedostępne."""
     wiersze = []
     for div, (_, tier, _) in (C.LIGI if ligi is None else ligi).items():
         plik = os.path.join(cache_dir, f"fd_{_fd_kod(sezon)}_{div}.csv")
+        ostatni = os.path.join(cache_dir, f"fd_{_fd_kod(sezon)}_{div}_ostatni.csv")
         if not biezacy and os.path.exists(plik):
             with open(plik, "rb") as f:
                 raw = f.read()
         else:
-            raw = _fd_get(f"{C.FD_URL}/mmz4281/{_fd_kod(sezon)}/{div}.csv")
-            if raw is None:
-                continue  # sezon jeszcze nieopublikowany (np. w lipcu)
-            if not biezacy:  # do cache trafia tylko sezon pobrany po jego zakończeniu
-                os.makedirs(cache_dir, exist_ok=True)
-                with open(plik, "wb") as f:
-                    f.write(raw)
+            try:
+                raw = _fd_get(f"{C.FD_URL}/mmz4281/{_fd_kod(sezon)}/{div}.csv")
+            except BladDanych as e:
+                if not os.path.exists(ostatni):  # brak kopii tej ligi – pomijamy ją, reszta działa dalej
+                    UWAGI_ZRODLA.append((str(e), f"{div} {opis_sezonu(sezon)}", None))
+                    continue
+                raw = _kopia_lub_blad(ostatni, e, f"{div} {opis_sezonu(sezon)}")
+            else:
+                if raw is None:
+                    continue  # sezon jeszcze nieopublikowany (np. w lipcu)
+                # do cache trafia sezon pobrany po jego zakończeniu; bieżący – jako ostatnia kopia (zapas)
+                _zapisz_plik(ostatni if biezacy else plik, raw)
         for w in _csv_wiersze(_dekoduj(raw)):
             d, hg, vg = _fd_data(w.get("Date", "")), _int(w.get("FTHG")), _int(w.get("FTAG"))
             if d is None or hg is None or vg is None:
@@ -247,13 +288,23 @@ def fd_wyniki(sezon, cache_dir, biezacy, ligi=None):
 _TERMINARZ = {}  # fixtures.csv pobrany raz na uruchomienie (wspólny dla wszystkich krajów)
 
 
-def fd_terminarz(od, do, ligi=None):
-    """Mecze lig z fixtures.csv w zakresie dat (godziny brytyjskie przeliczone na polskie)."""
+def fd_terminarz(od, do, ligi=None, cache_dir=None):
+    """Mecze lig z fixtures.csv w zakresie dat (godziny brytyjskie przeliczone na polskie).
+    Ostatnia pobrana wersja jest zapisywana w cache_dir (fixtures_ostatni.csv) – zapas, gdy źródło nie działa."""
     url = f"{C.FD_URL}/fixtures.csv"
     if url not in _TERMINARZ:
-        raw = _fd_get(url)
-        if raw is None:
-            raise BladDanych("football-data.co.uk: brak pliku fixtures.csv.")
+        ostatni = os.path.join(cache_dir, "fixtures_ostatni.csv") if cache_dir else None
+        try:
+            raw = _fd_get(url)
+            if raw is None:
+                raise BladDanych("football-data.co.uk: brak pliku fixtures.csv.")
+        except BladDanych as e:
+            if not ostatni:
+                raise
+            raw = _kopia_lub_blad(ostatni, e, "terminarz fixtures.csv")
+        else:
+            if ostatni:
+                _zapisz_plik(ostatni, raw)
         _TERMINARZ[url] = _dekoduj(raw)
     return fd_terminarz_z_tekstu(_TERMINARZ[url], od, do, ligi)
 
@@ -279,7 +330,7 @@ def fd_dane(sezony, s_biez, cache_dir, od, do, z_terminarzem=True, ligi=None):
     wyniki = [fd_wyniki(s, cache_dir, s == s_biez, ligi) for s in sezony]
     wyniki = pd.concat([w for w in wyniki if len(w)], ignore_index=True) if any(len(w) for w in wyniki) \
         else pd.DataFrame(columns=KOLUMNY)
-    terminarz = fd_terminarz(od, do, ligi) if z_terminarzem else []
+    terminarz = fd_terminarz(od, do, ligi, cache_dir) if z_terminarzem else []
     return wyniki, terminarz
 
 
@@ -402,6 +453,9 @@ def zbierz(archiwum, cache_dir, zrodlo, dzis, od, do, z_terminarzem=True, kraj=C
         except BladDanych as e:
             ostrz.append(str(e))
             continue
+        finally:
+            ostrz += _uwagi_kopii(list(dict.fromkeys(UWAGI_ZRODLA)))
+            UWAGI_ZRODLA.clear()
         if len(wyniki):
             wyniki = wyniki[wyniki.tier.isin(list(poziomy))]
         uzupelnione = [s for s in luki if len(wyniki) and (wyniki.Season == s).any()]
