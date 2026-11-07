@@ -87,7 +87,16 @@ data i para) jest liczony raz, a sezon, który jest w archiwum, zostaje z archiw
 ### Strona
 
 U góry **kalendarz**: kolejne dni z meczami (terminarz football-data.co.uk obejmuje zwykle kilka najbliższych dni),
-przy każdym dniu liczba meczów z ★. Po wybraniu dnia: **kafelki krajów** (Anglia, Hiszpania, Włochy, Niemcy, Francja, Holandia) – na kafelku
+przy każdym dniu liczba meczów z ★, a przed nimi (szare) **minione dni** – ostatnie 7 (`DNI_WSTECZ`).
+Strona otwiera się na dzisiejszym dniu.
+
+**Minione dni:** mecze, których wyniki są już w football-data.co.uk (dopisuje je z opóźnieniem kilku dni), ze smaczkami
+i typami dokładnie takimi, jak wyglądały rano w dniu meczu (liczone z historii sprzed tego dnia), oraz z wynikiem meczu.
+Przy każdym smaczku-serii jest **✔ utrzymała się** albo **✘ padła**, przy typach i ostatecznym typie **✔ trafiony** /
+**✘ nietrafiony**, przy predykcji dnia – wynik. Na przycisku dnia, na kafelkach krajów i w zakładkach lig są liczniki
+✔/✘ serii, a na górze dnia podsumowanie: ile serii się utrzymało, ile ostatecznych typów weszło i czy weszła predykcja
+dnia. Kursy przy minionych dniach to kursy zamknięcia z football-data.co.uk. Nic nie jest zapisywane – minione dni
+są liczone od nowa przy każdym odświeżeniu. Po wybraniu dnia: **kafelki krajów** (Anglia, Hiszpania, Włochy, Niemcy, Francja, Holandia) – na kafelku
 **★ i liczba meczów ze smaczkami**, liczba meczów tego dnia i ile z nich ma długą historię. Kliknięcie kafelka pokazuje
 **ligi kraju** jako rozwijane zakładki z licznikami (Anglia: Premier League, Championship, League One, League Two; Niemcy: Bundesliga i 2. Bundesliga;
 kraj z jedną ligą: od razu rozwinięta); po rozwinięciu mecze ze smaczkami, od najciekawszego. Ponowne
@@ -151,7 +160,7 @@ Gdyby mimo to został wyłączony, GitHub przyśle e-mail: wystarczy kliknąć *
 
 | Polecenie | Co robi |
 |---|---|
-| `python -m smaczki dzis` | mecze od dziś na tydzień (`--dni N` = dziś + N dni, domyślnie 6), `raport_dzis.txt` + `site/index.html` (+ powiadomienie o dzisiejszych meczach, jeśli ustawiony `NTFY_TOPIC`) |
+| `python -m smaczki dzis` | mecze od dziś na tydzień (`--dni N` = dziś + N dni, domyślnie 6), `raport_dzis.txt` + `site/index.html` z minionymi dniami (`--wstecz N`, domyślnie 7; 0 = bez) (+ powiadomienie o dzisiejszych meczach, jeśli ustawiony `NTFY_TOPIC`) |
 | `python -m smaczki kolejka` | najbliższe 7 dni (`--dni N` albo `--od 2026-11-07 --do 2026-11-09`), pogrupowane po kraju i lidze, w grupie od najciekawszego, `raport_kolejka.txt` |
 | `python -m smaczki kolejka --plik-meczow mecze.csv` | własna lista meczów (kolumny `home,away,date,liga`; `date` i `liga` opcjonalne; `liga` = kod ligi z konfiguracji, np. `E1`, `SP1`, `I1`, albo nazwa ligi lub kraju; puste = Anglia) |
 | `python -m smaczki mecz "Derby" "Bolton"` | pełna karta pary: bilans u gospodarza, ostatnie wygrane, serie, średnia goli, 0:0, najwyższe zwycięstwa, bilans wszystkich meczów, forma (`--wyniki`: lista wszystkich meczów u gospodarza). Kraj jest wykrywany po nazwach (`mecz "Atlético Madrid" Getafe`), można go podać: `--ligi spain` |

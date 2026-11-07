@@ -95,6 +95,9 @@ WYNIK_DOMYSLNY = 0.05
 # "pierwszy mecz od 25 lat" = 25, "pierwszy mecz w historii" = 30.
 PROG_DNIA = 25
 
+# Strona: ile minionych dni pokazać w kalendarzu (smaczki z tamtego dnia + wynik: która seria się utrzymała, która padła)
+DNI_WSTECZ = 7
+
 # Ranking: pary, które grały ze sobą w ostatnich N latach, z co najmniej tyloma meczami u gospodarza
 RANKING_LAT = 3
 RANKING_MIN_MECZOW = 5
