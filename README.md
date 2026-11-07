@@ -166,6 +166,7 @@ Gdyby mimo to został wyłączony, GitHub przyśle e-mail: wystarczy kliknąć *
 | `python -m smaczki mecz "Derby" "Bolton"` | pełna karta pary: bilans u gospodarza, ostatnie wygrane, serie, średnia goli, 0:0, najwyższe zwycięstwa, bilans wszystkich meczów, forma (`--wyniki`: lista wszystkich meczów u gospodarza). Kraj jest wykrywany po nazwach (`mecz "Atlético Madrid" Getafe`), można go podać: `--ligi spain` |
 | `python -m smaczki ranking --top 25 [--tier 1] [--ligi italy]` | najdłuższe passy „gość nie wygrał u rywala od X lat” wśród par grających ze sobą w ostatnich 3 latach (domyślnie Anglia) |
 | `python -m smaczki nazwy` | kontrola dopasowania nazw drużyn ze źródła do archiwum (każdy kraj osobno) |
+| `python -m smaczki kopia [--przywroc ZIP]` | kopia danych źródłowych w jednym ZIP-ie albo przywrócenie z kopii (patrz [Kopia danych](#kopia-danych)) |
 | `python -m smaczki skutecznosc` | przelicza skuteczność typów na historii z kursami (od 2005/06) |
 
 Opcje wspólne: `--zrodlo auto|fd|api|brak`, `--dane FOLDER` (domyślnie `dane`), `--archiwum ŚCIEŻKA` (folder z plikami
@@ -288,6 +289,19 @@ z przewagą nad kursem**; aplikacja pokazuje je razem z wynikami, żeby było to
 
 Przeliczenie (np. po sezonie): `python -m smaczki skutecznosc` – pobiera ok. 100 plików z kursami (raz, potem cache)
 i zapisuje `smaczki/skutecznosc.json`.
+
+## Kopia danych
+
+Gdyby źródła (engsoccerdata, football-data.co.uk) przestały działać:
+- **aplikacja sama** zapisuje ostatnią pobraną wersję plików bieżącego sezonu (`dane/cache/fd_<sezon>_<liga>_ostatni.csv`)
+  i terminarza (`fixtures_ostatni.csv`), a zakończone sezony i archiwa i tak trzyma w `dane/`. Gdy źródło nie odpowiada,
+  liczy na tych kopiach i ostrzega na górze strony, z jakiego dnia są dane;
+- **kopia u siebie:** `python -m smaczki kopia` tworzy jeden plik `kopia_danych_RRRR-MM-DD.zip` (ok. 12 MB): archiwa
+  engsoccerdata włączonych krajów i wszystkie pliki football-data.co.uk włączonych lig od 1993/94 (brakujące pobiera).
+  Przechowuj go prywatnie (dysk, chmura) i **nie publikuj** – dane należą do ich autorów (engsoccerdata: licencja GPL;
+  football-data.co.uk: darmowe do pobrania). Plik nie trafia do repo (`.gitignore`);
+- **przywrócenie:** `python -m smaczki kopia --przywroc kopia_danych_RRRR-MM-DD.zip` rozpakowuje dane do `dane/`
+  (tylko pliki danych). Nowe wyniki po dacie kopii trzeba wtedy wziąć z innego źródła (np. API-Football z kluczem).
 
 ## Nazwy drużyn
 
