@@ -97,6 +97,8 @@ PROG_DNIA = 25
 
 # Strona: ile minionych dni pokazać w kalendarzu (smaczki z tamtego dnia + wynik: która seria się utrzymała, która padła)
 DNI_WSTECZ = 7
+# Powiadomienie na telefon nie wcześniej niż o tej godzinie (czas polski) – strona odświeża się też w nocy
+NTFY_OD_GODZINY = 7
 
 # Ranking: pary, które grały ze sobą w ostatnich N latach, z co najmniej tyloma meczami u gospodarza
 RANKING_LAT = 3

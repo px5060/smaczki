@@ -96,7 +96,11 @@ Przy każdym smaczku-serii jest **✔ utrzymała się** albo **✘ padła**, prz
 **✘ nietrafiony**, przy predykcji dnia – wynik. Na przycisku dnia, na kafelkach krajów i w zakładkach lig są liczniki
 ✔/✘ serii, a na górze dnia podsumowanie: ile serii się utrzymało, ile ostatecznych typów weszło i czy weszła predykcja
 dnia. Kursy przy minionych dniach to kursy zamknięcia z football-data.co.uk. Nic nie jest zapisywane – minione dni
-są liczone od nowa przy każdym odświeżeniu. Po wybraniu dnia: **kafelki krajów** (Anglia, Hiszpania, Włochy, Niemcy, Francja, Holandia) – na kafelku
+są liczone od nowa przy każdym odświeżeniu. Mecze z minionych dni, których wyniku football-data.co.uk jeszcze nie
+dopisało, zostają na stronie z dopiskiem **⏳ czeka na wynik** (ze smaczkami sprzed meczu); ✔/✘ pojawią się same,
+gdy wynik trafi do danych. Gdy w terminarzu nie ma żadnych nadchodzących meczów (np. przerwa na mecze reprezentacji),
+strona pisze to wprost i pokazuje minione dni. „Dziś”, „Jutro” i „Wczoraj” liczy telefon według swojej daty, więc
+strona wygenerowana poprzedniego dnia i tak otwiera się na właściwym dniu. Po wybraniu dnia: **kafelki krajów** (Anglia, Hiszpania, Włochy, Niemcy, Francja, Holandia) – na kafelku
 **★ i liczba meczów ze smaczkami**, liczba meczów tego dnia i ile z nich ma długą historię. Kliknięcie kafelka pokazuje
 **ligi kraju** jako rozwijane zakładki z licznikami (Anglia: Premier League, Championship, League One, League Two; Niemcy: Bundesliga i 2. Bundesliga;
 kraj z jedną ligą: od razu rozwinięta); po rozwinięciu mecze ze smaczkami, od najciekawszego. Ponowne
@@ -126,7 +130,9 @@ engsoccerdata są oznaczone „°”. Na dole strony sekcja
 
 ## A. Automat w chmurze: codziennie, bez włączonego komputera
 
-GitHub Actions uruchamia aplikację dwa razy dziennie (ok. 6:20 i 12:20 czasu polskiego zimą, latem godzinę później) i publikuje stronę na GitHub Pages.
+GitHub Actions uruchamia aplikację co 3 godziny (GitHub potrafi opóźniać zaplanowane uruchomienia o kilka godzin,
+więc częstsze terminy dają świeżą stronę rano i szybciej dopisane wyniki) i publikuje stronę na GitHub Pages.
+Powiadomienie na telefon przychodzi najwyżej raz dziennie i nie wcześniej niż o 7:00 (`NTFY_OD_GODZINY`).
 
 1. Załóż na GitHubie **publiczne** repozytorium (np. `smaczki`) i wrzuć do niego te pliki (kod nie zawiera kluczy ani danych).
    Na prywatnym repo GitHub Pages wymaga płatnego planu.

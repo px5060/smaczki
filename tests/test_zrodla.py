@@ -325,6 +325,26 @@ class TestCLI(Tmp):
         with open(os.path.join(self.tmp, "r.txt"), encoding="utf-8") as f:
             self.assertNotIn("Luton Town – Sheffield United", f.read())  # raport tekstowy: tylko nadchodzące mecze
 
+    def test_miniony_mecz_bez_wyniku_czeka(self):
+        """Mecz z wczoraj, którego wyniku źródło jeszcze nie dopisało, zostaje na stronie z „czeka na wynik”."""
+        wyniki = pd.DataFrame([{"Date": pd.Timestamp(f"{r}-10-01"), "Season": r, "home": "Luton",
+                                "visitor": "Sheffield Utd", "hgoal": 3, "vgoal": 0, "tier": 2} for r in range(2015, 2023)])
+        term = [dl.Mecz(dt.datetime(2026, 11, 5, 20, 45), "Championship", "Luton", "Sheffield Utd"),
+                dl.Mecz(dt.datetime(2026, 11, 7, 16, 0), "Championship", "Wolves", "Sheffield Utd")]
+        html = os.path.join(self.tmp, "site", "index.html")
+        typowe = pd.DataFrame(columns=["1", "X", "2", "O", "B"], dtype=float)
+        with mock.patch.object(dl, "fd_dane", return_value=(wyniki, term)), \
+                mock.patch("smaczki.rules.stawki_sezonow", return_value=typowe):
+            self.uruchom("dzis", "--dzis", "2026-11-06", "--zrodlo", "fd", "--dane", self.tmp, "--html", html,
+                         "--raport", os.path.join(self.tmp, "r.txt"))
+        with open(html, encoding="utf-8") as f:
+            strona = f.read()
+        self.assertIn('<button type="button" data-d="2026-11-05" class="minal">', strona)
+        self.assertIn('<span class="ile">⏳1</span>', strona)
+        self.assertIn('Luton Town – Sheffield United <span class="rez czeka">⏳ czeka na wynik</span>', strona)
+        self.assertIn("1 mecz czeka na wynik", strona)
+        self.assertNotIn('<span class="wyn', strona)  # bez ✔/✘, dopóki nie ma wyniku
+
 
 def para(wyniki):
     """Historia pary A–B: lista (rok, gospodarz, gole gosp., gole gościa)."""

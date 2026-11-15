@@ -2,8 +2,9 @@ name: Smaczki dnia
 
 on:
   schedule:
-    - cron: "23 5 * * *"   # codziennie ok. 6:23 zimą / 7:23 latem (czas polski)
-    - cron: "23 11 * * *"  # druga aktualizacja: terminarz meczów w tygodniu bywa dopisywany później
+    # co 3 godziny (czas UTC; w Polsce +1 h zimą, +2 h latem). GitHub potrafi opóźniać zaplanowane uruchomienia
+    # o kilka godzin, więc częstsze terminy dają świeżą stronę rano i szybciej dopisane wyniki.
+    - cron: "23 2,5,8,11,14,17,20 * * *"
   workflow_dispatch:        # ręczne uruchomienie: zakładka Actions -> Smaczki dnia -> Run workflow
 
 permissions:
