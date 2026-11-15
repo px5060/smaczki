@@ -160,6 +160,59 @@ class TestFootballData(Tmp):
             self.assertNotIn("https://www.football-data.co.uk/mmz4281/2627/E0.csv", wywolania)
             self.assertEqual(len(w), 1)
 
+    def test_zrodlo_niedostepne_ostatnia_kopia(self):
+        """Gdy football-data.co.uk nie działa, bieżący sezon i terminarz są brane z ostatniej zapisanej kopii."""
+        def get(url):
+            if url.endswith("/2627/E0.csv"):
+                return WYNIKI_E0
+            if url.endswith("/fixtures.csv"):
+                return FIXTURES.encode("utf-8")
+            return None
+        with mock.patch.object(dl, "_fd_get", side_effect=get):
+            dl.fd_wyniki(2026, self.cache, biezacy=True)
+            dl.fd_terminarz(dt.date(2026, 11, 6), dt.date(2026, 11, 7), None, self.cache)
+        self.assertTrue(os.path.exists(os.path.join(self.cache, "fd_2627_E0_ostatni.csv")))
+        self.assertTrue(os.path.exists(os.path.join(self.cache, "fixtures_ostatni.csv")))
+        dl._TERMINARZ.clear()
+        awaria = dl.BladDanych("football-data.co.uk jest niedostępne (test).")
+        with mock.patch.object(dl, "_fd_get", side_effect=awaria):
+            d = dl.zbierz(self.tmp, self.cache, "fd", dt.date(2026, 11, 6), dt.date(2026, 11, 6), dt.date(2026, 11, 7))
+        self.assertFalse(d.tylko_archiwum)
+        nowe = d.hist[d.hist.Date >= "2026-08-01"]
+        self.assertEqual(nowe[["home", "visitor", "hgoal", "vgoal"]].values.tolist(),
+                         [["Wolverhampton Wanderers", "Manchester United", 2, 1]])
+        self.assertEqual([m.home for m in d.terminarz], ["Arsenal", "Walsall"])
+        self.assertEqual(len(d.ostrzezenia), 1)  # jedno zbiorcze ostrzeżenie
+        self.assertIn("Użyto zapisanych kopii: E0 2026/27 (z ", d.ostrzezenia[0])
+        self.assertIn("terminarz fixtures.csv (z ", d.ostrzezenia[0])
+        self.assertIn("Bez kopii (pominięte): E0 2025/26", d.ostrzezenia[0])
+        dl._TERMINARZ.clear()
+
+    def test_kopia_danych_i_przywrocenie(self):
+        from smaczki import kopia
+        def get(url):
+            return WYNIKI_E0 if url.endswith("/2627/E0.csv") else (FIXTURES.encode("utf-8")
+                                                                  if url.endswith("/fixtures.csv") else None)
+        plik = os.path.join(self.tmp, "kopia.zip")
+        with mock.patch.object(dl, "_fd_get", side_effect=get):
+            n, _ = kopia.utworz(self.tmp, {"england": (1, 2, 3, 4)}, plik, dzis=dt.date(2026, 11, 6),
+                                od_sezonu=2025, postep=lambda *x: None)
+        dl._TERMINARZ.clear()
+        import zipfile
+        with zipfile.ZipFile(plik) as z:
+            nazwy = set(z.namelist())
+        self.assertEqual(nazwy, {"CZYTAJ.txt", "england.csv", "cache/fd_2627_E0_ostatni.csv",
+                                 "cache/fixtures_ostatni.csv"})
+        self.assertEqual(n, 3)
+        with zipfile.ZipFile(plik, "a") as z:
+            z.writestr("../poza.csv", "x")  # spoza folderu danych – nie może zostać rozpakowany
+        cel = os.path.join(self.tmp, "nowe_dane")
+        self.assertEqual(kopia.przywroc(plik, cel), 3)
+        self.assertTrue(os.path.exists(os.path.join(cel, "cache", "fd_2627_E0_ostatni.csv")))
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, "poza.csv")))
+        with open(os.path.join(cel, "england.csv"), encoding="utf-8") as f:
+            self.assertEqual(f.read(), ARCHIWUM_CSV)
+
 
 class TestLukiArchiwum(Tmp):
     def test_brakujacy_sezon_uzupelniany_ze_zrodla(self):
@@ -271,6 +324,26 @@ class TestCLI(Tmp):
         self.assertIn("20:45", strona)  # godzina z football-data.co.uk w czasie polskim
         with open(os.path.join(self.tmp, "r.txt"), encoding="utf-8") as f:
             self.assertNotIn("Luton Town – Sheffield United", f.read())  # raport tekstowy: tylko nadchodzące mecze
+
+    def test_miniony_mecz_bez_wyniku_czeka(self):
+        """Mecz z wczoraj, którego wyniku źródło jeszcze nie dopisało, zostaje na stronie z „czeka na wynik”."""
+        wyniki = pd.DataFrame([{"Date": pd.Timestamp(f"{r}-10-01"), "Season": r, "home": "Luton",
+                                "visitor": "Sheffield Utd", "hgoal": 3, "vgoal": 0, "tier": 2} for r in range(2015, 2023)])
+        term = [dl.Mecz(dt.datetime(2026, 11, 5, 20, 45), "Championship", "Luton", "Sheffield Utd"),
+                dl.Mecz(dt.datetime(2026, 11, 7, 16, 0), "Championship", "Wolves", "Sheffield Utd")]
+        html = os.path.join(self.tmp, "site", "index.html")
+        typowe = pd.DataFrame(columns=["1", "X", "2", "O", "B"], dtype=float)
+        with mock.patch.object(dl, "fd_dane", return_value=(wyniki, term)), \
+                mock.patch("smaczki.rules.stawki_sezonow", return_value=typowe):
+            self.uruchom("dzis", "--dzis", "2026-11-06", "--zrodlo", "fd", "--dane", self.tmp, "--html", html,
+                         "--raport", os.path.join(self.tmp, "r.txt"))
+        with open(html, encoding="utf-8") as f:
+            strona = f.read()
+        self.assertIn('<button type="button" data-d="2026-11-05" class="minal">', strona)
+        self.assertIn('<span class="ile">⏳1</span>', strona)
+        self.assertIn('Luton Town – Sheffield United <span class="rez czeka">⏳ czeka na wynik</span>', strona)
+        self.assertIn("1 mecz czeka na wynik", strona)
+        self.assertNotIn('<span class="wyn', strona)  # bez ✔/✘, dopóki nie ma wyniku
 
 
 def para(wyniki):

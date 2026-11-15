@@ -4,6 +4,7 @@ api_cache/
 # wyniki
 site/
 raport_*.txt
+kopia_danych_*.zip
 # klucze
 .env
 __pycache__/

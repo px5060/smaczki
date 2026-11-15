@@ -29,6 +29,7 @@ class Pozycja:
     zakres: object = None   # rules.Zakres – zakres danych kraju (None = Anglia: pełna historia 4 poziomów)
     stawki: object = None   # odsetki wyników sezonów (rules.stawki_sezonow) – do wcześniejszych serii pary
     rezultat: tuple = None  # wynik rozegranego meczu (gole gospodarza, gole gościa) – widok minionych dni
+    czeka: bool = False     # miniony mecz, którego wyniku źródło jeszcze nie dopisało
     _wcz: dict = field(default_factory=dict, repr=False, compare=False)
 
     def mecze_ukladu(self, uklad):
@@ -428,6 +429,7 @@ div.kraj[hidden]{display:none}
 .wyn.zle{background:#fbe1e1}
 @media (prefers-color-scheme:dark){.wyn.ok,.ok{color:#7bd88f}.wyn.zle{background:#4a1f22}}
 .rez{display:inline-block;margin-left:.3rem;padding:0 .45rem;border-radius:8px;background:var(--chip);font-weight:700}
+.rez.czeka{font-size:.72rem;font-weight:600;color:var(--muted)}
 .kafel .kw{font-size:.72rem;color:var(--muted)}
 .podsum.minal{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:.5rem .7rem}
 .uw{color:var(--accent)}
@@ -709,7 +711,8 @@ def _karta(p, skut=None):
     return (f'<div class="{klasa}">'
             f'<div class="top"><span class="chip">{e(p.liga)}</span><span>{godz}</span>{gw}</div>'
             f'<div class="teams">{e(p.h)} – {e(p.v)}'
-            + (f' <span class="rez">{p.rezultat[0]}:{p.rezultat[1]}</span>' if p.rezultat else "") + '</div>'
+            + (f' <span class="rez">{p.rezultat[0]}:{p.rezultat[1]}</span>' if p.rezultat else "")
+            + (' <span class="rez czeka">⏳ czeka na wynik</span>' if p.czeka else "") + '</div>'
             f'<div class="last">{e(_ostatni_txt(p))}</div>'
             + (f"<ul>{fakty}</ul>" if fakty else "") + fakty_html_typy + _wyniki_html(p) + "</div>")
 
@@ -846,11 +849,15 @@ def _liga_html(nazwa, mecze_ligi, skut, otwarta=False):
 
 
 def _kafel_wyniki(mecze_kraju):
-    """Na kafelku minionego dnia: ile serii się utrzymało, a ile padło."""
-    if not any(p.rezultat for p in mecze_kraju):
+    """Na kafelku minionego dnia: ile serii się utrzymało, a ile padło (i ile meczów czeka na wynik)."""
+    czeka = sum(1 for p in mecze_kraju if p.czeka and p.ma_serie)
+    if not any(p.rezultat for p in mecze_kraju) and not czeka:
         return ""
     ok, zle = bilans_serii([p for p in mecze_kraju if p.ma_serie])
-    return f'<span class="kw"><span class="ok">✔ {ok}</span> <span class="zle">✘ {zle}</span> serii</span>'
+    tekst = f'<span class="ok">✔ {ok}</span> <span class="zle">✘ {zle}</span> serii' if (ok or zle) else ""
+    if czeka:
+        tekst += (" · " if tekst else "") + f"⏳ {czeka}"
+    return f'<span class="kw">{tekst}</span>'
 
 
 def _kafle_html(dnia, info, skut):
@@ -882,7 +889,11 @@ def _podsumowanie_dnia(dnia, pr):
     ok, zle = bilans_serii(dnia)
     ost = [wszedl(p, p.ostateczny.typ) for p in dnia if p.ostateczny is not None]
     ost = [w for w in ost if w is not None]
-    czesci = [f'serie: <span class="ok">✔ utrzymało się {ok}</span> · <span class="zle">✘ padło {zle}</span>']
+    czeka = sum(1 for p in dnia if p.czeka and p.ma_serie)
+    czesci = [f'serie: <span class="ok">✔ utrzymało się {ok}</span> · <span class="zle">✘ padło {zle}</span>'] \
+        if (ok or zle or not czeka) else []
+    if czeka:
+        czesci.append(f"⏳ {mecze(czeka)} czeka na wynik (football-data.co.uk dopisuje wyniki z opóźnieniem kilku dni)")
     if ost:
         czesci.append(f"ostateczne typy: trafione {sum(ost)} z {len(ost)}")
     if pr:
@@ -890,7 +901,7 @@ def _podsumowanie_dnia(dnia, pr):
         if w is not None:
             czesci.append("predykcja dnia: " + ('<span class="ok">✔ trafiona</span>' if w
                                                  else '<span class="zle">✘ nietrafiona</span>'))
-    return ('<p class="podsum minal">Rozegrane – ' + " · ".join(czesci) +
+    return ('<p class="podsum minal">' + ("Rozegrane – " if (ok or zle) else "") + " · ".join(czesci) +
             '. Smaczki i typy tak, jak wyglądały rano w dniu meczu.</p>')
 
 
@@ -906,9 +917,11 @@ def raport_html(pozycje, info, dzis, od, do):
         gw = sum(1 for p in dnia if p.dluga_historia)
         iso = dzien.isoformat()
         minal = dzien < dzis
-        if minal:  # miniony dzień: ile serii się utrzymało, a ile padło
+        if minal:  # miniony dzień: ile serii się utrzymało, a ile padło (⏳ – mecze czekające na wynik)
             ok, zle = bilans_serii(dnia)
-            ile = f"✔{ok} ✘{zle}"
+            czeka = sum(1 for p in dnia if p.czeka and p.ma_serie)
+            ile = " ".join(x for x in [f"✔{ok} ✘{zle}" if (ok or zle or not czeka) else "",
+                                       f"⏳{czeka}" if czeka else ""] if x)
         else:
             ile = "★ " + str(gw) if gw else str(sum(1 for p in dnia if p.ma_serie)) + " sm."
         klasa_dnia = ' class="minal"' if minal else ""
@@ -933,6 +946,10 @@ def raport_html(pozycje, info, dzis, od, do):
         panele.append(f'<p class="empty">Brak meczów {"włączonych lig" if wiele else "4 lig angielskich"} '
                       f'{od:%d.%m} – {do:%d.%m.%Y}.</p>')
     kalendarz = f'<nav class="kal">{"".join(przyciski)}</nav>' if przyciski else ""
+    if pozycje and not any(p.rezultat is None and not p.czeka for p in pozycje):
+        kalendarz = ('<p class="empty">W terminarzu football-data.co.uk nie ma na razie meczów włączonych lig na '
+                     'najbliższe dni (np. przerwa na mecze reprezentacji) – pojawią się, gdy źródło je doda. '
+                     'Niżej minione dni.</p>' + kalendarz)
     ostrz = "".join(f'<div class="warn">{e(o)}</div>' for o in ostrzezenia(info))
     teraz = dt.datetime.now().strftime("%d.%m.%Y %H:%M")
     return f"""<!doctype html>
@@ -993,10 +1010,31 @@ Wygenerowano {teraz}.</footer>
     }});
   }});
   if (!przyciski.length) return;
+  // „dziś” według daty w telefonie: strona może być wygenerowana wczoraj (odświeżenie na GitHubie bywa opóźnione)
+  var DN = ["nd", "pn", "wt", "śr", "czw", "pt", "sob"];
+  var DNI = ["niedziela", "poniedziałek", "wtorek", "środa", "czwartek", "piątek", "sobota"];
+  var MIES = ["stycznia", "lutego", "marca", "kwietnia", "maja", "czerwca", "lipca", "sierpnia", "września",
+              "października", "listopada", "grudnia"];
+  function iso(t) {{ return t.getFullYear() + "-" + ("0" + (t.getMonth() + 1)).slice(-2) + "-" + ("0" + t.getDate()).slice(-2); }}
+  var t0 = new Date(), dzis = iso(t0);
+  var jutro = iso(new Date(t0.getFullYear(), t0.getMonth(), t0.getDate() + 1));
+  var wczoraj = iso(new Date(t0.getFullYear(), t0.getMonth(), t0.getDate() - 1));
+  function data(d) {{ var p = d.split("-"); return new Date(+p[0], +p[1] - 1, +p[2]); }}
+  przyciski.forEach(function (b) {{
+    var d = b.getAttribute("data-d"), dn = b.querySelector(".dn");
+    if (d < dzis) b.classList.add("minal");
+    if (dn) dn.textContent = d === dzis ? "dziś" : DN[data(d).getDay()];
+  }});
+  panele.forEach(function (s) {{
+    var d = s.getAttribute("data-d"), h2 = s.querySelector("h2"), t = data(d);
+    var nazwa = DNI[t.getDay()] + " " + t.getDate() + " " + MIES[t.getMonth()];
+    var rel = d === dzis ? "Dziś · " : d === jutro ? "Jutro · " : d === wczoraj ? "Wczoraj · " : "";
+    if (h2) h2.textContent = rel ? rel + nazwa : nazwa.charAt(0).toUpperCase() + nazwa.slice(1);
+  }});
   przyciski.forEach(function (b) {{ b.addEventListener("click", function () {{ pokaz(b.getAttribute("data-d"), kraj); }}); }});
   var h = location.hash.slice(1).split("/"), dni = Array.prototype.map.call(przyciski, function (b) {{ return b.getAttribute("data-d"); }});
-  var dzisiejsze = Array.prototype.filter.call(przyciski, function (b) {{ return !b.classList.contains("minal"); }});
-  var start = dzisiejsze.length ? dzisiejsze[0].getAttribute("data-d") : dni[dni.length - 1];
+  var dalej = dni.filter(function (d) {{ return d >= dzis; }});
+  var start = dalej.length ? dalej[0] : dni[dni.length - 1];
   pokaz(dni.indexOf(h[0]) >= 0 ? h[0] : start, h[1] || "");
 }})();
 </script>

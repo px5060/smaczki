@@ -12,7 +12,7 @@ import urllib.request
 import pandas as pd
 
 from . import config as C
-from . import skutecznosc
+from . import kopia, skutecznosc
 from .data_loader import (BladDanych, Mecz, pobierz_archiwum, wczytaj_archiwum, wlaczone_ligi,
                           wybierz_ligi, zbierz, zbierz_kraje)
 from .names import Nazwy
@@ -120,6 +120,18 @@ def _pozycje_minione(dane, od, do, nazwy_lig=None):
     return out
 
 
+def _czekajace(dane, dawne, dzis):
+    """Mecze z minionych dni z terminarza, których wyniku źródło jeszcze nie dopisało: zostają na stronie
+    ze smaczkami sprzed meczu i dopiskiem „czeka na wynik”."""
+    rozegrane = set(zip(dane.hist.Date, dane.hist.home, dane.hist.visitor))
+    brak = [m for m in dawne
+            if (pd.Timestamp(m.data.date()), dane.nazwy(m.home), dane.nazwy(m.away)) not in rozegrane]
+    out = _pozycje(dane, brak, dzis)
+    for p in out:
+        p.czeka = True
+    return out
+
+
 def _liga_z_pliku(tekst):
     """Kolumna liga w pliku meczów: kod ligi (SP1), nazwa ligi (La Liga) albo kraj (spain) -> (kraj, nazwa ligi)."""
     t = (tekst or "").strip()
@@ -214,19 +226,26 @@ def cmd_terminarz(a, dzienny):
     if wlasne:
         z_pliku = _plik_meczow(wlasne)
         kraje = {k: kraje.get(k) or wlaczone_ligi(a.plik_lig).get(k) or None for k in C.KRAJE if k in z_pliku}
-    lista = zbierz_kraje(a.archiwum or a.dane, os.path.join(a.dane, "cache"), a.zrodlo, dzis, od, do, kraje,
-                         z_terminarzem=not wlasne)
-    nazwy_lig = None if kody is None else {C.KRAJE[C.LIGA_KRAJ[k]].ligi[k][0] for k in kody}
     wstecz = getattr(a, "wstecz", 0) if not wlasne else 0
+    # terminarz także z minionych dni: mecze, których wyniku źródło jeszcze nie dopisało, zostają na stronie
+    od_terminarza = od - dt.timedelta(days=wstecz)
+    lista = zbierz_kraje(a.archiwum or a.dane, os.path.join(a.dane, "cache"), a.zrodlo, dzis, od_terminarza, do,
+                         kraje, z_terminarzem=not wlasne)
+    nazwy_lig = None if kody is None else {C.KRAJE[C.LIGA_KRAJ[k]].ligi[k][0] for k in kody}
     pozycje, minione, terminarz_razem = [], [], 0
     for dane in lista:
         terminarz = z_pliku[dane.kraj] if wlasne else dane.terminarz
         if nazwy_lig is not None:
             terminarz = [m for m in terminarz if m.liga in nazwy_lig]
+        dawne = []
+        if not wlasne:  # terminarz ze źródła: mecze sprzed dziś to minione dni (własny plik – bez zmian)
+            dawne = [m for m in terminarz if m.data is not None and m.data.date() < od]
+            terminarz = [m for m in terminarz if m.data is None or m.data.date() >= od]
         terminarz_razem += len(terminarz)
         pozycje += _pozycje(dane, terminarz, dzis)
         if wstecz and not dane.tylko_archiwum:  # minione dni z wynikami (do „cofnięcia się” na stronie)
-            minione += _pozycje_minione(dane, od - dt.timedelta(days=wstecz), od - dt.timedelta(days=1), nazwy_lig)
+            minione += _pozycje_minione(dane, od_terminarza, od - dt.timedelta(days=1), nazwy_lig)
+            minione += _czekajace(dane, dawne, dzis)
     if not terminarz_razem and not dzienny:
         print("\n".join(o for d in lista for o in d.ostrzezenia), file=sys.stderr)
         sys.exit(f"Brak meczów do rozegrania w okresie {od} – {do}.")
@@ -240,7 +259,9 @@ def cmd_terminarz(a, dzienny):
         _zapisz(a.html, raport_html(minione + pozycje, info, dzis, od, do))
         print(f"\nStrona: {a.html}")
     temat = getattr(a, "ntfy", None) or os.environ.get("NTFY_TOPIC", "").strip()
-    if dzienny and temat:
+    if dzienny and temat and not a.dzis and dt.datetime.now().hour < C.NTFY_OD_GODZINY:
+        print(f"Przed {C.NTFY_OD_GODZINY}:00 – powiadomienie wyśle późniejsze odświeżenie.")
+    elif dzienny and temat:
         p = powiadomienie(pozycje, dzis)
         if p:
             wyslij_ntfy(temat, *p, url=os.environ.get("SMACZKI_URL") or None,
@@ -394,6 +415,17 @@ def cmd_skutecznosc(a):
     print(f"Zapisano {skutecznosc.PLIK}")
 
 
+def cmd_kopia(a):
+    """Kopia danych źródłowych w jednym ZIP-ie (do przechowania u siebie) albo przywrócenie z kopii."""
+    if a.przywroc:
+        n = kopia.przywroc(a.przywroc, a.dane)
+        print(f"Przywrócono {n} plików z {a.przywroc} do {a.dane}/.")
+        return
+    plik = a.plik or f"kopia_danych_{dt.date.today():%Y-%m-%d}.zip"
+    n, rozmiar = kopia.utworz(a.dane, _ligi(a)[0], plik)
+    print(f"Kopia gotowa: {plik} ({n} plików, {rozmiar / 1e6:.1f} MB). Przechowuj ją u siebie, nie publikuj.")
+
+
 def cmd_pobierz(a):
     for kraj in _ligi(a)[0]:
         plik = pobierz_archiwum(a.archiwum or a.dane, wymus=a.wymus, kraj=kraj)
@@ -450,6 +482,10 @@ def main(argv=None):
     sub.add_parser("nazwy", parents=[wspolne], help="kontrola dopasowania nazw drużyn")
     p = sub.add_parser("skutecznosc", parents=[wspolne], help="przelicz skuteczność typów na historii z kursami")
     p.add_argument("--od-sezonu", type=int, default=2005, help="pierwszy sezon testu (domyślnie 2005 = 2005/06)")
+    p = sub.add_parser("kopia", parents=[wspolne],
+                       help="kopia danych źródłowych w jednym ZIP-ie (archiwa + football-data.co.uk) albo przywrócenie")
+    p.add_argument("--plik", help="nazwa pliku ZIP (domyślnie kopia_danych_RRRR-MM-DD.zip)")
+    p.add_argument("--przywroc", metavar="ZIP", help="przywróć dane z kopii do folderu --dane")
     p = sub.add_parser("pobierz", parents=[wspolne], help="pobierz archiwa engsoccerdata włączonych krajów")
     p.add_argument("--wymus", action="store_true", help="pobierz ponownie, nawet jeśli plik już jest")
 
@@ -469,6 +505,8 @@ def main(argv=None):
             cmd_nazwy(a)
         elif a.polecenie == "skutecznosc":
             cmd_skutecznosc(a)
+        elif a.polecenie == "kopia":
+            cmd_kopia(a)
         elif a.polecenie == "pobierz":
             cmd_pobierz(a)
     except BladDanych as e:
